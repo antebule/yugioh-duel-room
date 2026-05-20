@@ -1,10 +1,18 @@
 <script setup lang="ts">
 import PlayMat from '@/ui/field/PlayMat.vue'
+import ControlsBar from '@/ui/bars/ControlsBar.vue'
+import DuelLog from '@/ui/log/DuelLog.vue'
+import { useDuelStore } from '@/state/duelStore'
+
+const duelStore = useDuelStore()
 </script>
 
 <template>
   <div class="duel-room">
-    <header class="duel-room__opp-bar">Opponent</header>
+    <header class="duel-room__opp-bar">
+      <span class="duel-room__bar-label">Opponent</span>
+      <span class="duel-room__lp">LP {{ duelStore.state.lifePoints.opponent }}</span>
+    </header>
 
     <aside class="duel-room__preview">
       <span class="duel-room__placeholder">Card Preview</span>
@@ -18,15 +26,19 @@ import PlayMat from '@/ui/field/PlayMat.vue'
         <span class="duel-room__placeholder">Hand</span>
       </section>
       <section class="duel-room__controls">
-        <span class="duel-room__placeholder">Controls</span>
+        <ControlsBar />
       </section>
     </main>
 
     <aside class="duel-room__log">
-      <span class="duel-room__placeholder">Duel Log</span>
+      <DuelLog />
     </aside>
 
-    <footer class="duel-room__player-bar">Player</footer>
+    <footer class="duel-room__player-bar">
+      <span class="duel-room__bar-label">Player</span>
+      <span class="duel-room__lp">LP {{ duelStore.state.lifePoints.player }}</span>
+      <span class="duel-room__phase">Turn {{ duelStore.state.turn }} · {{ duelStore.state.phase }}</span>
+    </footer>
   </div>
 </template>
 
@@ -52,26 +64,46 @@ import PlayMat from '@/ui/field/PlayMat.vue'
   border-radius: var(--radius-md);
 }
 
-.duel-room__opp-bar {
-  grid-area: opp-bar;
+.duel-room__opp-bar,
+.duel-room__player-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
   padding: var(--space-1) var(--space-3);
   background: var(--color-field);
   border: 1px solid var(--color-field-edge);
   border-radius: var(--radius-md);
   font-size: 12px;
-  color: var(--color-text-dim);
   z-index: var(--z-bars);
+}
+
+.duel-room__opp-bar {
+  grid-area: opp-bar;
+  color: var(--color-text-dim);
 }
 
 .duel-room__player-bar {
   grid-area: player-bar;
-  padding: var(--space-1) var(--space-3);
-  background: var(--color-field);
-  border: 1px solid var(--color-field-edge);
-  border-radius: var(--radius-md);
-  font-size: 12px;
   color: var(--color-text);
-  z-index: var(--z-bars);
+}
+
+.duel-room__bar-label {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.duel-room__lp {
+  font-family: var(--font-mono);
+  color: var(--color-accent-gold);
+  font-size: 13px;
+}
+
+.duel-room__phase {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-dim);
 }
 
 .duel-room__preview {
@@ -92,8 +124,6 @@ import PlayMat from '@/ui/field/PlayMat.vue'
   border: 1px solid var(--color-field-edge);
   border-radius: var(--radius-md);
   display: flex;
-  align-items: center;
-  justify-content: center;
   overflow: hidden;
 }
 
@@ -128,13 +158,12 @@ import PlayMat from '@/ui/field/PlayMat.vue'
 }
 
 .duel-room__controls {
-  min-height: 32px;
+  min-height: 36px;
   background: var(--color-field);
   border: 1px solid var(--color-field-edge);
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
-  justify-content: center;
   flex-shrink: 0;
 }
 
