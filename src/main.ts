@@ -4,7 +4,6 @@ import App from './App.vue'
 import { useDuelStore } from '@/state/duelStore'
 import { useLogStore } from '@/state/logStore'
 import { useCardCacheStore } from '@/state/cardCacheStore'
-import { DEV_SEED_PASSCODES } from '@/duel/devSeed'
 
 import '@/assets/styles/tokens.css'
 import '@/assets/styles/reset.css'
@@ -16,13 +15,8 @@ app.use(createPinia())
 
 // Eager-init stores so the dispatcher's apply function is registered and
 // the duel log is subscribed to the event bus before any user interaction.
-const duelStore = useDuelStore()
+useDuelStore()
 useLogStore()
-const cardCacheStore = useCardCacheStore()
-
-if (import.meta.env.DEV) {
-  duelStore.devSeed()
-  void cardCacheStore.ensureLoaded(DEV_SEED_PASSCODES)
-}
+useCardCacheStore()
 
 app.mount('#app')

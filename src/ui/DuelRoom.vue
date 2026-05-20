@@ -2,13 +2,22 @@
 import PlayMat from '@/ui/field/PlayMat.vue'
 import ControlsBar from '@/ui/bars/ControlsBar.vue'
 import DuelLog from '@/ui/log/DuelLog.vue'
+import DeckImportModal from '@/ui/modals/DeckImportModal.vue'
+import EmptyStateOverlay from '@/ui/modals/EmptyStateOverlay.vue'
 import { useDuelStore } from '@/state/duelStore'
+import { useDeckStore } from '@/state/deckStore'
+import { useUiStore } from '@/state/uiStore'
+import { useDeckImport } from '@/composables/useDeckImport'
 
 const duelStore = useDuelStore()
+const deckStore = useDeckStore()
+const uiStore = useUiStore()
+
+useDeckImport()
 </script>
 
 <template>
-  <div class="duel-room">
+  <div class="duel-room" :class="{ 'duel-room--drag-over': uiStore.globalDragOver }">
     <header class="duel-room__opp-bar">
       <span class="duel-room__bar-label">Opponent</span>
       <span class="duel-room__lp">LP {{ duelStore.state.lifePoints.opponent }}</span>
@@ -21,6 +30,7 @@ const duelStore = useDuelStore()
     <main class="duel-room__center">
       <div class="duel-room__playmat-frame">
         <PlayMat />
+        <EmptyStateOverlay v-if="!deckStore.currentDeck" />
       </div>
       <section class="duel-room__hand">
         <span class="duel-room__placeholder">Hand</span>
@@ -39,6 +49,13 @@ const duelStore = useDuelStore()
       <span class="duel-room__lp">LP {{ duelStore.state.lifePoints.player }}</span>
       <span class="duel-room__phase">Turn {{ duelStore.state.turn }} · {{ duelStore.state.phase }}</span>
     </footer>
+
+    <Teleport to="body">
+      <DeckImportModal v-if="uiStore.modal === 'deck-import'" />
+      <div v-if="uiStore.globalDragOver" class="drop-hint">
+        <div class="drop-hint__inner">Drop .ydk to import</div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -62,6 +79,11 @@ const duelStore = useDuelStore()
   color: var(--color-text);
   border: 1px solid var(--color-field-edge);
   border-radius: var(--radius-md);
+  transition: border-color 120ms ease;
+}
+
+.duel-room--drag-over {
+  border-color: var(--color-accent-blue);
 }
 
 .duel-room__opp-bar,
@@ -137,6 +159,7 @@ const duelStore = useDuelStore()
 }
 
 .duel-room__playmat-frame {
+  position: relative;
   flex: 1;
   min-height: 0;
   min-width: 0;
@@ -173,5 +196,26 @@ const duelStore = useDuelStore()
   text-transform: uppercase;
   color: var(--color-text-dim);
   opacity: 0.5;
+}
+
+.drop-hint {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-toast);
+}
+
+.drop-hint__inner {
+  padding: 12px 24px;
+  background: var(--color-accent-blue);
+  color: #0a0e15;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 </style>

@@ -70,14 +70,19 @@ const cardCount = computed(() => zoneState.value?.cards.length ?? 0)
 
 .zone__count {
   position: absolute;
-  bottom: 2px;
-  right: 2px;
-  padding: 1px 5px;
-  background: rgba(0, 0, 0, 0.6);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: var(--z-card-hover);
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.78);
   color: var(--color-text);
   font-family: var(--font-mono);
-  font-size: 10px;
-  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  border-radius: var(--radius-sm);
   pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 </style>

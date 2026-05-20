@@ -28,6 +28,12 @@ export function applyEvent(state: DuelState, event: DuelEvent): void {
       state.rngSeed = prev.rngSeed
       return
     }
+    case 'DECK_SHUFFLED': {
+      const zoneId = `${event.owner}:DECK:0` as const
+      const zone = state.zones[zoneId]
+      if (zone) zone.cards = [...event.newOrder]
+      return
+    }
     default:
       return
   }
