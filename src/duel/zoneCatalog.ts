@@ -19,6 +19,18 @@ export const ZONE_SLOT_COUNT: Record<ZoneKind, number> = {
   ST: 5,
 }
 
+export const ZONE_CAPACITY: Record<ZoneKind, number> = {
+  HAND: Infinity,
+  DECK: Infinity,
+  GY: Infinity,
+  BANISHED: Infinity,
+  EXTRA: Infinity,
+  FIELD_SPELL: 1,
+  MZ: 1,
+  EMZ: 1,
+  ST: 1,
+}
+
 export const ZONE_KIND_LABEL: Record<ZoneKind, string> = {
   HAND: 'Hand',
   DECK: 'Deck',
