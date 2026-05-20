@@ -2,22 +2,39 @@
 import { computed } from 'vue'
 import type { ZoneDef } from '@/duel/zoneCatalog'
 import { ZONE_KIND_LABEL } from '@/duel/zoneCatalog'
+import { useDuelStore } from '@/state/duelStore'
+import CardOnField from './CardOnField.vue'
 
 const props = defineProps<{
   zone: ZoneDef
 }>()
 
+const duelStore = useDuelStore()
+
 const label = computed(() => ZONE_KIND_LABEL[props.zone.kind])
+const zoneState = computed(() => duelStore.state.zones[props.zone.id])
+const topInstanceUuid = computed(() => {
+  const cards = zoneState.value?.cards
+  return cards && cards.length > 0 ? cards[cards.length - 1]! : null
+})
+const cardCount = computed(() => zoneState.value?.cards.length ?? 0)
 </script>
 
 <template>
-  <div class="zone" :class="`zone--${zone.kind.toLowerCase()}`" :data-zone-id="zone.id">
-    <span class="zone__label">{{ label }}</span>
+  <div
+    class="zone"
+    :class="[`zone--${zone.kind.toLowerCase()}`, { 'zone--filled': topInstanceUuid }]"
+    :data-zone-id="zone.id"
+  >
+    <CardOnField v-if="topInstanceUuid" :instance-uuid="topInstanceUuid" />
+    <span v-else class="zone__label">{{ label }}</span>
+    <span v-if="cardCount > 1" class="zone__count">{{ cardCount }}</span>
   </div>
 </template>
 
 <style scoped>
 .zone {
+  position: relative;
   width: 100%;
   height: 100%;
   border: 1px dashed var(--color-field-edge);
@@ -27,6 +44,11 @@ const label = computed(() => ZONE_KIND_LABEL[props.zone.kind])
   align-items: center;
   justify-content: center;
   z-index: var(--z-field);
+}
+
+.zone--filled {
+  border: none;
+  background: transparent;
 }
 
 .zone__label {
@@ -44,5 +66,18 @@ const label = computed(() => ZONE_KIND_LABEL[props.zone.kind])
 
 .zone--emz {
   border-color: var(--color-accent-blue);
+}
+
+.zone__count {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  padding: 1px 5px;
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  border-radius: 4px;
+  pointer-events: none;
 }
 </style>
