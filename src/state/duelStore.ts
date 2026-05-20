@@ -114,5 +114,45 @@ export const useDuelStore = defineStore('duel', () => {
     })
   }
 
-  return { state, adjustLife, setLife, loadDeck, shuffleDeck }
+  function drawCard(owner: Owner, n: number = 1): void {
+    const deckZoneId = `${owner}:DECK:0` as ZoneId
+    const handZoneId = `${owner}:HAND:0` as ZoneId
+    const deckZone = state.value.zones[deckZoneId]
+    const handZone = state.value.zones[handZoneId]
+    if (!deckZone || !handZone) return
+
+    for (let i = 0; i < n; i++) {
+      if (deckZone.cards.length === 0) break
+      const fromIndex = deckZone.cards.length - 1
+      const cardUuid = deckZone.cards[fromIndex]!
+      const inst = state.value.instances[cardUuid]
+      if (!inst) break
+
+      const toIndex = handZone.cards.length
+
+      dispatch({
+        ...makeBase(owner),
+        type: 'CARD_MOVED',
+        cardUuid,
+        from: { zoneId: deckZoneId, index: fromIndex },
+        to: { zoneId: handZoneId, index: toIndex },
+        prevPosition: inst.position,
+        newPosition: 'face-up-attack',
+        prevFaceUp: inst.faceUp,
+        newFaceUp: owner === 'player',
+        prevRotation: inst.rotation,
+        newRotation: 0,
+        reason: 'draw',
+      })
+
+      dispatch({
+        ...makeBase(owner),
+        type: 'CARD_DRAWN',
+        cardUuid,
+        owner,
+      })
+    }
+  }
+
+  return { state, adjustLife, setLife, loadDeck, shuffleDeck, drawCard }
 })

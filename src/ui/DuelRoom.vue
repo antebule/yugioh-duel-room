@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import PlayMat from '@/ui/field/PlayMat.vue'
-import ControlsBar from '@/ui/bars/ControlsBar.vue'
+import Hand from '@/ui/hand/Hand.vue'
 import DuelLog from '@/ui/log/DuelLog.vue'
 import DeckImportModal from '@/ui/modals/DeckImportModal.vue'
 import EmptyStateOverlay from '@/ui/modals/EmptyStateOverlay.vue'
@@ -33,22 +33,24 @@ useDeckImport()
         <EmptyStateOverlay v-if="!deckStore.currentDeck" />
       </div>
       <section class="duel-room__hand">
-        <span class="duel-room__placeholder">Hand</span>
-      </section>
-      <section class="duel-room__controls">
-        <ControlsBar />
+        <Hand />
       </section>
     </main>
 
-    <aside class="duel-room__log">
-      <DuelLog />
+    <aside class="duel-room__right">
+      <div class="duel-room__log-inner">
+        <DuelLog />
+      </div>
+      <footer class="duel-room__player-bar">
+        <div class="duel-room__player-bar-row">
+          <span class="duel-room__bar-label">Player</span>
+          <span class="duel-room__lp">LP {{ duelStore.state.lifePoints.player }}</span>
+        </div>
+        <div class="duel-room__player-bar-row duel-room__player-bar-row--muted">
+          <span>Turn {{ duelStore.state.turn }} · {{ duelStore.state.phase }}</span>
+        </div>
+      </footer>
     </aside>
-
-    <footer class="duel-room__player-bar">
-      <span class="duel-room__bar-label">Player</span>
-      <span class="duel-room__lp">LP {{ duelStore.state.lifePoints.player }}</span>
-      <span class="duel-room__phase">Turn {{ duelStore.state.turn }} · {{ duelStore.state.phase }}</span>
-    </footer>
 
     <Teleport to="body">
       <DeckImportModal v-if="uiStore.modal === 'deck-import'" />
@@ -68,11 +70,10 @@ useDeckImport()
   min-height: 650px;
   display: grid;
   grid-template-columns: 22% 1fr 22%;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr;
   grid-template-areas:
     'opp-bar opp-bar opp-bar'
-    'preview center log'
-    'player-bar player-bar player-bar';
+    'preview center right';
   gap: var(--space-2);
   padding: var(--space-2);
   background: var(--color-bg);
@@ -86,8 +87,8 @@ useDeckImport()
   border-color: var(--color-accent-blue);
 }
 
-.duel-room__opp-bar,
-.duel-room__player-bar {
+.duel-room__opp-bar {
+  grid-area: opp-bar;
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -96,17 +97,8 @@ useDeckImport()
   border: 1px solid var(--color-field-edge);
   border-radius: var(--radius-md);
   font-size: 12px;
-  z-index: var(--z-bars);
-}
-
-.duel-room__opp-bar {
-  grid-area: opp-bar;
   color: var(--color-text-dim);
-}
-
-.duel-room__player-bar {
-  grid-area: player-bar;
-  color: var(--color-text);
+  z-index: var(--z-bars);
 }
 
 .duel-room__bar-label {
@@ -121,13 +113,6 @@ useDeckImport()
   font-size: 13px;
 }
 
-.duel-room__phase {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--color-text-dim);
-}
-
 .duel-room__preview {
   grid-area: preview;
   background: var(--color-field);
@@ -140,27 +125,59 @@ useDeckImport()
   overflow: hidden;
 }
 
-.duel-room__log {
-  grid-area: log;
+.duel-room__right {
+  grid-area: right;
   background: var(--color-field);
   border: 1px solid var(--color-field-edge);
   border-radius: var(--radius-md);
   display: flex;
+  flex-direction: column;
   overflow: hidden;
+  min-height: 0;
+}
+
+.duel-room__log-inner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.duel-room__player-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--color-field-edge);
+  background: rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+  z-index: var(--z-bars);
+}
+
+.duel-room__player-bar-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: 12px;
+}
+
+.duel-room__player-bar-row--muted {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-dim);
 }
 
 .duel-room__center {
   grid-area: center;
   min-width: 0;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: 4fr 1fr;
   gap: var(--space-2);
 }
 
 .duel-room__playmat-frame {
   position: relative;
-  flex: 1;
   min-height: 0;
   min-width: 0;
   display: flex;
@@ -170,24 +187,11 @@ useDeckImport()
 }
 
 .duel-room__hand {
-  min-height: 80px;
+  min-height: 0;
   background: var(--color-field);
   border: 1px solid var(--color-field-edge);
   border-radius: var(--radius-md);
   display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.duel-room__controls {
-  min-height: 36px;
-  background: var(--color-field);
-  border: 1px solid var(--color-field-edge);
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
 }
 
 .duel-room__placeholder {

@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { subscribe } from '@/core/events/eventBus'
 import type { DuelEvent, DuelEventType } from '@/core/events/eventTypes'
+import { useDuelStore } from './duelStore'
+import { useCardCacheStore } from './cardCacheStore'
 
 export interface LogEntry {
   id: string
@@ -12,6 +14,13 @@ export interface LogEntry {
 
 function ownerLabel(owner: 'player' | 'opponent'): string {
   return owner === 'player' ? 'Player' : 'Opponent'
+}
+
+function cardName(instanceUuid: string): string {
+  const inst = useDuelStore().state.instances[instanceUuid]
+  if (!inst) return '?'
+  const name = useCardCacheStore().byId(inst.cardId)?.name
+  return name ?? `#${inst.cardId}`
 }
 
 function formatEvent(event: DuelEvent): string {
@@ -31,20 +40,20 @@ function formatEvent(event: DuelEvent): string {
     case 'DECK_SHUFFLED':
       return `${ownerLabel(event.owner)} shuffled deck`
     case 'CARD_DRAWN':
-      return `${ownerLabel(event.owner)} drew a card`
+      return `${ownerLabel(event.owner)} drew ${cardName(event.cardUuid)}`
     case 'CARD_MOVED':
-      return `Card moved (${event.reason})`
+      return `${cardName(event.cardUuid)} moved (${event.reason})`
     case 'CARD_ROTATED':
-      return `Card rotated (${event.prev}° → ${event.next}°)`
+      return `${cardName(event.cardUuid)} rotated (${event.prev}° → ${event.next}°)`
     case 'CARD_FLIPPED':
-      return event.newFaceUp ? 'Card flipped face-up' : 'Card set face-down'
+      return `${cardName(event.cardUuid)} ${event.newFaceUp ? 'flipped face-up' : 'set face-down'}`
     case 'CARD_POSITION_CHANGED':
-      return `Position: ${event.prev} → ${event.next}`
+      return `${cardName(event.cardUuid)}: ${event.prev} → ${event.next}`
     case 'CARD_REVEALED':
-      return 'Card revealed'
+      return `${cardName(event.cardUuid)} revealed`
     case 'COUNTER_ADDED': {
       const sign = event.delta > 0 ? '+' : ''
-      return `Counter ${sign}${event.delta}`
+      return `${cardName(event.cardUuid)} counter ${sign}${event.delta}`
     }
     case 'TOKEN_CREATED':
       return 'Token created'
@@ -61,6 +70,10 @@ export const useLogStore = defineStore('log', () => {
   const entries = ref<LogEntry[]>([])
 
   subscribe((event) => {
+    // CARD_MOVED with reason 'draw' is suppressed because CARD_DRAWN logs the same action
+    // with the card name.
+    if (event.type === 'CARD_MOVED' && event.reason === 'draw') return
+
     entries.value.push({
       id: event.id,
       at: event.at,

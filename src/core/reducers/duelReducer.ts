@@ -34,6 +34,26 @@ export function applyEvent(state: DuelState, event: DuelEvent): void {
       if (zone) zone.cards = [...event.newOrder]
       return
     }
+    case 'CARD_MOVED': {
+      const inst = state.instances[event.cardUuid]
+      if (!inst) return
+      const fromZone = state.zones[event.from.zoneId]
+      if (fromZone) {
+        const idx = fromZone.cards.indexOf(event.cardUuid)
+        if (idx !== -1) fromZone.cards.splice(idx, 1)
+      }
+      const toZone = state.zones[event.to.zoneId]
+      if (toZone) {
+        const insertAt = Math.min(event.to.index, toZone.cards.length)
+        toZone.cards.splice(insertAt, 0, event.cardUuid)
+        inst.indexInZone = insertAt
+      }
+      inst.zoneId = event.to.zoneId
+      inst.position = event.newPosition
+      inst.faceUp = event.newFaceUp
+      inst.rotation = event.newRotation
+      return
+    }
     default:
       return
   }
