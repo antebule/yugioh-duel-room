@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useDuelStore } from '@/state/duelStore'
 import { useCardCacheStore } from '@/state/cardCacheStore'
+import { useUiStore } from '@/state/uiStore'
 
 const props = defineProps<{
   instanceUuid: string
@@ -9,15 +10,29 @@ const props = defineProps<{
 
 const duelStore = useDuelStore()
 const cardCacheStore = useCardCacheStore()
+const uiStore = useUiStore()
 
 const instance = computed(() => duelStore.state.instances[props.instanceUuid])
 const card = computed(() =>
   instance.value ? cardCacheStore.byId(instance.value.cardId) : undefined,
 )
+
+function onEnter(): void {
+  uiStore.hoverInstance(props.instanceUuid)
+}
+function onLeave(): void {
+  uiStore.unhoverInstance(props.instanceUuid)
+}
 </script>
 
 <template>
-  <div v-if="instance" class="hand-card" :title="card?.name ?? `#${instance.cardId}`">
+  <div
+    v-if="instance"
+    class="hand-card"
+    :title="card?.name ?? `#${instance.cardId}`"
+    @mouseenter="onEnter"
+    @mouseleave="onLeave"
+  >
     <img
       v-if="card"
       :src="card.imageUrl"

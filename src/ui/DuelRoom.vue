@@ -2,6 +2,7 @@
 import PlayMat from '@/ui/field/PlayMat.vue'
 import Hand from '@/ui/hand/Hand.vue'
 import DuelLog from '@/ui/log/DuelLog.vue'
+import CardPreviewPanel from '@/ui/preview/CardPreviewPanel.vue'
 import DeckImportModal from '@/ui/modals/DeckImportModal.vue'
 import EmptyStateOverlay from '@/ui/modals/EmptyStateOverlay.vue'
 import { useDuelStore } from '@/state/duelStore'
@@ -24,7 +25,7 @@ useDeckImport()
     </header>
 
     <aside class="duel-room__preview">
-      <span class="duel-room__placeholder">Card Preview</span>
+      <CardPreviewPanel />
     </aside>
 
     <main class="duel-room__center">

@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useDuelStore } from '@/state/duelStore'
 import { useCardCacheStore } from '@/state/cardCacheStore'
+import { useUiStore } from '@/state/uiStore'
 
 const props = defineProps<{
   instanceUuid: string
@@ -9,6 +10,7 @@ const props = defineProps<{
 
 const duelStore = useDuelStore()
 const cardCacheStore = useCardCacheStore()
+const uiStore = useUiStore()
 
 const instance = computed(() => duelStore.state.instances[props.instanceUuid])
 const card = computed(() =>
@@ -17,6 +19,22 @@ const card = computed(() =>
 
 const isDefense = computed(() => instance.value?.position.includes('defense') ?? false)
 const isFaceUp = computed(() => instance.value?.faceUp ?? false)
+
+// Cards in DECK or EXTRA aren't previewed — they're face-down to the controller
+// and showing the art on hover would leak the next draw / extra-deck contents.
+const isHidden = computed(() => {
+  const z = instance.value?.zoneId ?? ''
+  return z.includes(':DECK:') || z.includes(':EXTRA:')
+})
+
+function onEnter(): void {
+  if (isHidden.value) return
+  uiStore.hoverInstance(props.instanceUuid)
+}
+function onLeave(): void {
+  if (isHidden.value) return
+  uiStore.unhoverInstance(props.instanceUuid)
+}
 </script>
 
 <template>
@@ -25,6 +43,8 @@ const isFaceUp = computed(() => instance.value?.faceUp ?? false)
     class="card-on-field"
     :class="{ 'card-on-field--defense': isDefense }"
     :title="card?.name ?? `#${instance.cardId}`"
+    @mouseenter="onEnter"
+    @mouseleave="onLeave"
   >
     <img
       v-if="isFaceUp && card"
