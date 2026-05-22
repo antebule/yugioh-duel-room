@@ -8,12 +8,12 @@ import DeckImportModal from '@/ui/modals/DeckImportModal.vue'
 import EmptyStateOverlay from '@/ui/modals/EmptyStateOverlay.vue'
 import ZoneBrowserModal from '@/ui/modals/ZoneBrowserModal.vue'
 import ContextMenu from '@/ui/menu/ContextMenu.vue'
-import { useDuelStore } from '@/state/duelStore'
+import OpponentInfoBar from '@/ui/bars/OpponentInfoBar.vue'
+import PlayerInfoBar from '@/ui/bars/PlayerInfoBar.vue'
 import { useDeckStore } from '@/state/deckStore'
 import { useUiStore } from '@/state/uiStore'
 import { useDeckImport } from '@/composables/useDeckImport'
 
-const duelStore = useDuelStore()
 const deckStore = useDeckStore()
 const uiStore = useUiStore()
 
@@ -54,10 +54,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
 
 <template>
   <div class="duel-room" :class="{ 'duel-room--drag-over': uiStore.globalDragOver }">
-    <header class="duel-room__opp-bar">
-      <span class="duel-room__bar-label">Opponent</span>
-      <span class="duel-room__lp">LP {{ duelStore.state.lifePoints.opponent }}</span>
-    </header>
+    <OpponentInfoBar class="duel-room__opp-bar" />
 
     <aside class="duel-room__preview">
       <CardPreviewPanel />
@@ -77,15 +74,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
       <div class="duel-room__log-inner">
         <DuelLog />
       </div>
-      <footer class="duel-room__player-bar">
-        <div class="duel-room__player-bar-row">
-          <span class="duel-room__bar-label">Player</span>
-          <span class="duel-room__lp">LP {{ duelStore.state.lifePoints.player }}</span>
-        </div>
-        <div class="duel-room__player-bar-row duel-room__player-bar-row--muted">
-          <span>Turn {{ duelStore.state.turn }} · {{ duelStore.state.phase }}</span>
-        </div>
-      </footer>
+      <PlayerInfoBar />
     </aside>
 
     <Teleport to="body">
@@ -131,28 +120,6 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
 
 .duel-room__opp-bar {
   grid-area: opp-bar;
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-1) var(--space-3);
-  background: var(--color-field);
-  border: 1px solid var(--color-field-edge);
-  border-radius: var(--radius-md);
-  font-size: 12px;
-  color: var(--color-text-dim);
-  z-index: var(--z-bars);
-}
-
-.duel-room__bar-label {
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  opacity: 0.75;
-}
-
-.duel-room__lp {
-  font-family: var(--font-mono);
-  color: var(--color-accent-gold);
-  font-size: 13px;
 }
 
 .duel-room__preview {
@@ -185,30 +152,6 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
   overflow: hidden;
 }
 
-.duel-room__player-bar {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--space-2) var(--space-3);
-  border-top: 1px solid var(--color-field-edge);
-  background: rgba(0, 0, 0, 0.15);
-  flex-shrink: 0;
-  z-index: var(--z-bars);
-}
-
-.duel-room__player-bar-row {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  font-size: 12px;
-}
-
-.duel-room__player-bar-row--muted {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--color-text-dim);
-}
-
 .duel-room__center {
   grid-area: center;
   min-width: 0;
@@ -234,14 +177,6 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
   border: 1px solid var(--color-field-edge);
   border-radius: var(--radius-md);
   display: flex;
-}
-
-.duel-room__placeholder {
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--color-text-dim);
-  opacity: 0.5;
 }
 
 .drop-hint {
