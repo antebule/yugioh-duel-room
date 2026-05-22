@@ -14,6 +14,7 @@ export type MoveReason =
   | 'send_gy'
   | 'banish'
   | 'return_deck'
+  | 'return_hand'
   | 'shuffle_into_deck'
   | 'move_zone'
   | 'draw'

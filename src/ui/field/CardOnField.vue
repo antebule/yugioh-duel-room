@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useDuelStore } from '@/state/duelStore'
 import { useCardCacheStore } from '@/state/cardCacheStore'
 import { useUiStore } from '@/state/uiStore'
+import { useContextMenu } from '@/composables/useContextMenu'
 
 const props = defineProps<{
   instanceUuid: string
@@ -11,6 +12,7 @@ const props = defineProps<{
 const duelStore = useDuelStore()
 const cardCacheStore = useCardCacheStore()
 const uiStore = useUiStore()
+const ctx = useContextMenu()
 
 const instance = computed(() => duelStore.state.instances[props.instanceUuid])
 const card = computed(() =>
@@ -27,19 +29,24 @@ const isHidden = computed(() => {
   return z.includes(':DECK:') || z.includes(':EXTRA:')
 })
 
+const rootEl = ref<HTMLElement | null>(null)
+
 function onEnter(): void {
   if (isHidden.value) return
   uiStore.hoverInstance(props.instanceUuid)
+  if (rootEl.value) ctx.onCardEnter(props.instanceUuid, rootEl.value)
 }
 function onLeave(): void {
   if (isHidden.value) return
   uiStore.unhoverInstance(props.instanceUuid)
+  ctx.onCardLeave(props.instanceUuid)
 }
 </script>
 
 <template>
   <div
     v-if="instance"
+    ref="rootEl"
     class="card-on-field"
     :class="{ 'card-on-field--defense': isDefense }"
     :title="card?.name ?? `#${instance.cardId}`"

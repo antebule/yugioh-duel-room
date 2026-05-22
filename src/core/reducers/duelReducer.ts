@@ -54,6 +54,34 @@ export function applyEvent(state: DuelState, event: DuelEvent): void {
       inst.rotation = event.newRotation
       return
     }
+    case 'CARD_POSITION_CHANGED': {
+      const inst = state.instances[event.cardUuid]
+      if (!inst) return
+      inst.position = event.next
+      inst.faceUp = event.next.startsWith('face-up')
+      inst.rotation = event.next.includes('defense') ? 90 : 0
+      return
+    }
+    case 'CARD_FLIPPED': {
+      const inst = state.instances[event.cardUuid]
+      if (!inst) return
+      inst.faceUp = event.newFaceUp
+      const isDefense = inst.position.includes('defense')
+      inst.position = event.newFaceUp
+        ? isDefense
+          ? 'face-up-defense'
+          : 'face-up-attack'
+        : isDefense
+          ? 'face-down-defense'
+          : 'face-down-attack'
+      return
+    }
+    case 'CARD_ROTATED': {
+      const inst = state.instances[event.cardUuid]
+      if (!inst) return
+      inst.rotation = event.next
+      return
+    }
     default:
       return
   }

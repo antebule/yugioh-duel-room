@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { CardInstance, Owner, ZoneId } from '@/duel/types'
+import type { CardInstance, FieldPosition, Owner, ZoneId } from '@/duel/types'
 import { initialState } from '@/duel/initialState'
 import { applyEvent } from '@/core/reducers/duelReducer'
 import { dispatch, registerApply } from '@/core/events/dispatcher'
-import type { DuelEvent } from '@/core/events/eventTypes'
+import type { DuelEvent, MoveReason } from '@/core/events/eventTypes'
 import { uuid } from '@/core/utils/uuid'
 import { mulberry32, randomSeed } from '@/core/rng/rng'
 import { shuffled } from '@/core/utils/shuffle'
@@ -12,6 +12,13 @@ import type { Deck } from '@/deck/types'
 
 function makeBase(actor: Owner | 'system'): { id: string; at: number; actor: Owner | 'system' } {
   return { id: uuid(), at: Date.now(), actor }
+}
+
+export interface MoveCardOptions {
+  position?: FieldPosition
+  faceUp?: boolean
+  reason: MoveReason
+  toIndex?: number
 }
 
 export const useDuelStore = defineStore('duel', () => {
@@ -65,7 +72,6 @@ export const useDuelStore = defineStore('duel', () => {
   }
 
   function loadDeck(owner: Owner, deck: Deck): void {
-    // Full reset before loading.
     state.value = initialState(randomSeed())
 
     const deckZoneId = `${owner}:DECK:0` as ZoneId
@@ -81,7 +87,6 @@ export const useDuelStore = defineStore('duel', () => {
       state.value.instances[inst.uuid] = inst
       state.value.zones[extraZoneId]!.cards.push(inst.uuid)
     }
-    // Side deck is parsed/stored but not placed in a zone in MVP.
 
     dispatch({
       ...makeBase('system'),
@@ -154,5 +159,221 @@ export const useDuelStore = defineStore('duel', () => {
     }
   }
 
-  return { state, adjustLife, setLife, loadDeck, shuffleDeck, drawCard }
+  function moveCard(cardUuid: string, toZoneId: ZoneId, opts: MoveCardOptions): void {
+    const inst = state.value.instances[cardUuid]
+    if (!inst) return
+    const fromZone = state.value.zones[inst.zoneId]
+    const toZone = state.value.zones[toZoneId]
+    if (!fromZone || !toZone) return
+
+    const fromIndex = fromZone.cards.indexOf(cardUuid)
+    const toIndex = opts.toIndex ?? toZone.cards.length
+
+    const newPosition = opts.position ?? inst.position
+    const newFaceUp = opts.faceUp ?? inst.faceUp
+    const newRotation = newPosition.includes('defense') ? 90 : 0
+
+    dispatch({
+      ...makeBase(inst.owner),
+      type: 'CARD_MOVED',
+      cardUuid,
+      from: { zoneId: inst.zoneId, index: fromIndex },
+      to: { zoneId: toZoneId, index: toIndex },
+      prevPosition: inst.position,
+      newPosition,
+      prevFaceUp: inst.faceUp,
+      newFaceUp,
+      prevRotation: inst.rotation,
+      newRotation,
+      reason: opts.reason,
+    })
+  }
+
+  function normalSummon(cardUuid: string, toZoneId: ZoneId): void {
+    moveCard(cardUuid, toZoneId, {
+      position: 'face-up-attack',
+      faceUp: true,
+      reason: 'normal_summon',
+    })
+  }
+
+  function specialSummon(cardUuid: string, toZoneId: ZoneId): void {
+    moveCard(cardUuid, toZoneId, {
+      position: 'face-up-attack',
+      faceUp: true,
+      reason: 'special_summon',
+    })
+  }
+
+  function setMonster(cardUuid: string, toZoneId: ZoneId): void {
+    moveCard(cardUuid, toZoneId, {
+      position: 'face-down-defense',
+      faceUp: false,
+      reason: 'set',
+    })
+  }
+
+  function activateSpellTrap(cardUuid: string, toZoneId: ZoneId): void {
+    moveCard(cardUuid, toZoneId, {
+      position: 'face-up-attack',
+      faceUp: true,
+      reason: 'activate',
+    })
+  }
+
+  function setSpellTrap(cardUuid: string, toZoneId: ZoneId): void {
+    moveCard(cardUuid, toZoneId, {
+      position: 'face-down-attack',
+      faceUp: false,
+      reason: 'set',
+    })
+  }
+
+  function moveZone(cardUuid: string, toZoneId: ZoneId): void {
+    moveCard(cardUuid, toZoneId, { reason: 'move_zone' })
+  }
+
+  function sendToGY(cardUuid: string): void {
+    const inst = state.value.instances[cardUuid]
+    if (!inst) return
+    const gyZone = `${inst.owner}:GY:0` as ZoneId
+    moveCard(cardUuid, gyZone, {
+      position: 'face-up-attack',
+      faceUp: true,
+      reason: 'send_gy',
+    })
+  }
+
+  function destroy(cardUuid: string): void {
+    const inst = state.value.instances[cardUuid]
+    if (!inst) return
+    const gyZone = `${inst.owner}:GY:0` as ZoneId
+    moveCard(cardUuid, gyZone, {
+      position: 'face-up-attack',
+      faceUp: true,
+      reason: 'destroy',
+    })
+  }
+
+  function banish(cardUuid: string): void {
+    const inst = state.value.instances[cardUuid]
+    if (!inst) return
+    const banishedZone = `${inst.owner}:BANISHED:0` as ZoneId
+    moveCard(cardUuid, banishedZone, {
+      position: 'face-up-attack',
+      faceUp: true,
+      reason: 'banish',
+    })
+  }
+
+  function returnToDeckTop(cardUuid: string): void {
+    const inst = state.value.instances[cardUuid]
+    if (!inst) return
+    const deckZone = `${inst.owner}:DECK:0` as ZoneId
+    const zone = state.value.zones[deckZone]
+    moveCard(cardUuid, deckZone, {
+      position: 'face-up-attack',
+      faceUp: false,
+      reason: 'return_deck',
+      toIndex: zone ? zone.cards.length : undefined,
+    })
+  }
+
+  function returnToDeckBottom(cardUuid: string): void {
+    const inst = state.value.instances[cardUuid]
+    if (!inst) return
+    const deckZone = `${inst.owner}:DECK:0` as ZoneId
+    moveCard(cardUuid, deckZone, {
+      position: 'face-up-attack',
+      faceUp: false,
+      reason: 'return_deck',
+      toIndex: 0,
+    })
+  }
+
+  function returnToHand(cardUuid: string): void {
+    const inst = state.value.instances[cardUuid]
+    if (!inst) return
+    const handZone = `${inst.owner}:HAND:0` as ZoneId
+    moveCard(cardUuid, handZone, {
+      position: 'face-up-attack',
+      faceUp: inst.owner === 'player',
+      reason: 'return_hand',
+    })
+  }
+
+  function shuffleIntoDeck(cardUuid: string): void {
+    const inst = state.value.instances[cardUuid]
+    if (!inst) return
+    returnToDeckTop(cardUuid)
+    shuffleDeck(inst.owner)
+  }
+
+  function rotate(cardUuid: string): void {
+    const inst = state.value.instances[cardUuid]
+    if (!inst) return
+    const next: FieldPosition = inst.position.includes('defense')
+      ? inst.faceUp
+        ? 'face-up-attack'
+        : 'face-down-attack'
+      : inst.faceUp
+        ? 'face-up-defense'
+        : 'face-down-defense'
+    dispatch({
+      ...makeBase(inst.owner),
+      type: 'CARD_POSITION_CHANGED',
+      cardUuid,
+      prev: inst.position,
+      next,
+    })
+  }
+
+  function flip(cardUuid: string): void {
+    const inst = state.value.instances[cardUuid]
+    if (!inst) return
+    const newFaceUp = !inst.faceUp
+    dispatch({
+      ...makeBase(inst.owner),
+      type: 'CARD_FLIPPED',
+      cardUuid,
+      prevFaceUp: inst.faceUp,
+      newFaceUp,
+    })
+  }
+
+  function reveal(cardUuid: string): void {
+    const inst = state.value.instances[cardUuid]
+    if (!inst) return
+    dispatch({
+      ...makeBase(inst.owner),
+      type: 'CARD_REVEALED',
+      cardUuid,
+    })
+  }
+
+  return {
+    state,
+    adjustLife,
+    setLife,
+    loadDeck,
+    shuffleDeck,
+    drawCard,
+    moveCard,
+    normalSummon,
+    specialSummon,
+    setMonster,
+    activateSpellTrap,
+    setSpellTrap,
+    moveZone,
+    sendToGY,
+    destroy,
+    banish,
+    returnToDeckTop,
+    returnToDeckBottom,
+    returnToHand,
+    shuffleIntoDeck,
+    rotate,
+    flip,
+    reveal,
+  }
 })

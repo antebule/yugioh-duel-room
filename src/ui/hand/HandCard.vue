@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useDuelStore } from '@/state/duelStore'
 import { useCardCacheStore } from '@/state/cardCacheStore'
 import { useUiStore } from '@/state/uiStore'
+import { useContextMenu } from '@/composables/useContextMenu'
 
 const props = defineProps<{
   instanceUuid: string
@@ -11,24 +12,35 @@ const props = defineProps<{
 const duelStore = useDuelStore()
 const cardCacheStore = useCardCacheStore()
 const uiStore = useUiStore()
+const ctx = useContextMenu()
 
 const instance = computed(() => duelStore.state.instances[props.instanceUuid])
 const card = computed(() =>
   instance.value ? cardCacheStore.byId(instance.value.cardId) : undefined,
 )
 
+const menuActive = computed(
+  () => uiStore.contextMenuInstanceUuid === props.instanceUuid,
+)
+
+const rootEl = ref<HTMLElement | null>(null)
+
 function onEnter(): void {
   uiStore.hoverInstance(props.instanceUuid)
+  if (rootEl.value) ctx.onCardEnter(props.instanceUuid, rootEl.value)
 }
 function onLeave(): void {
   uiStore.unhoverInstance(props.instanceUuid)
+  ctx.onCardLeave(props.instanceUuid)
 }
 </script>
 
 <template>
   <div
     v-if="instance"
+    ref="rootEl"
     class="hand-card"
+    :class="{ 'hand-card--active': menuActive }"
     :title="card?.name ?? `#${instance.cardId}`"
     @mouseenter="onEnter"
     @mouseleave="onLeave"
@@ -56,7 +68,8 @@ function onLeave(): void {
   flex-shrink: 0;
 }
 
-.hand-card:hover {
+.hand-card:hover,
+.hand-card--active {
   transform: translateY(-12px) scale(1.18);
   z-index: var(--z-hand-hover);
 }
