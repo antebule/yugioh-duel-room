@@ -6,6 +6,7 @@ import DuelLog from '@/ui/log/DuelLog.vue'
 import CardPreviewPanel from '@/ui/preview/CardPreviewPanel.vue'
 import DeckImportModal from '@/ui/modals/DeckImportModal.vue'
 import EmptyStateOverlay from '@/ui/modals/EmptyStateOverlay.vue'
+import ZoneBrowserModal from '@/ui/modals/ZoneBrowserModal.vue'
 import ContextMenu from '@/ui/menu/ContextMenu.vue'
 import { useDuelStore } from '@/state/duelStore'
 import { useDeckStore } from '@/state/deckStore'
@@ -89,6 +90,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
 
     <Teleport to="body">
       <DeckImportModal v-if="uiStore.modal === 'deck-import'" />
+      <ZoneBrowserModal v-if="uiStore.zoneBrowserZoneId" />
       <div v-if="uiStore.globalDragOver" class="drop-hint">
         <div class="drop-hint__inner">Drop .ydk to import</div>
       </div>

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { ZoneKind } from '@/duel/types'
+import type { ZoneId, ZoneKind } from '@/duel/types'
 
 export type ModalName = 'deck-import' | 'dice' | 'coin' | null
 
@@ -31,6 +31,7 @@ export const useUiStore = defineStore('ui', () => {
   const contextMenuAnchor = ref<ContextMenuAnchor | null>(null)
 
   const zonePicker = ref<ZonePicker | null>(null)
+  const zoneBrowserZoneId = ref<ZoneId | null>(null)
 
   function openModal(name: Exclude<ModalName, null>): void {
     modal.value = name
@@ -86,6 +87,14 @@ export const useUiStore = defineStore('ui', () => {
     zonePicker.value = null
   }
 
+  function openZoneBrowser(zoneId: ZoneId): void {
+    zoneBrowserZoneId.value = zoneId
+  }
+
+  function closeZoneBrowser(): void {
+    zoneBrowserZoneId.value = null
+  }
+
   return {
     modal,
     globalDragOver,
@@ -95,6 +104,7 @@ export const useUiStore = defineStore('ui', () => {
     contextMenuInstanceUuid,
     contextMenuAnchor,
     zonePicker,
+    zoneBrowserZoneId,
     openModal,
     closeModal,
     setGlobalDragOver,
@@ -105,5 +115,7 @@ export const useUiStore = defineStore('ui', () => {
     closeContextMenu,
     startZonePicker,
     cancelZonePicker,
+    openZoneBrowser,
+    closeZoneBrowser,
   }
 })

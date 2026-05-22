@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
 
-defineProps<{
-  title: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    title: string
+    size?: 'sm' | 'lg'
+  }>(),
+  { size: 'sm' },
+)
 
 const emit = defineEmits<{ close: [] }>()
 
@@ -29,7 +33,7 @@ onUnmounted(() => {
 
 <template>
   <div class="modal-scrim" @click="onScrimClick">
-    <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal" :class="`modal--${props.size}`" role="dialog" aria-modal="true">
       <header class="modal__header">
         <h2 class="modal__title">{{ title }}</h2>
         <button class="modal__close" aria-label="Close" @click="close">×</button>
@@ -58,13 +62,20 @@ onUnmounted(() => {
   border: 1px solid var(--color-field-edge);
   border-radius: var(--radius-lg);
   width: 100%;
-  max-width: 560px;
-  max-height: 80vh;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
   z-index: var(--z-modal);
   overflow: hidden;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+}
+
+.modal--sm {
+  max-width: 560px;
+}
+
+.modal--lg {
+  max-width: min(1100px, 92vw);
 }
 
 .modal__header {

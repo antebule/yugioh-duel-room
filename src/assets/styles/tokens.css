@@ -28,10 +28,10 @@
   --z-hand-hover: 40;
   --z-bars: 50;
   --z-preview: 60;
-  --z-menu: 100;
-  --z-submenu: 110;
   --z-modal-scrim: 500;
   --z-modal: 510;
+  --z-menu: 600;
+  --z-submenu: 610;
   --z-toast: 1000;
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;

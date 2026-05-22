@@ -24,11 +24,22 @@ function startPicker(
 ): void {
   const ui = useUiStore()
   ui.closeContextMenu()
+  ui.closeZoneBrowser()
   ui.startZonePicker({
     instanceUuid: instance.uuid,
     kind,
     validZoneKinds,
   })
+}
+
+function startReturnToField(instance: CardInstance, category: CardCategory): void {
+  if (category === 'monster') {
+    startPicker(instance, 'special_summon', ['MZ', 'EMZ'])
+  } else if (category === 'field-spell') {
+    startPicker(instance, 'activate_field', ['FIELD_SPELL'])
+  } else {
+    startPicker(instance, 'activate', ['ST'])
+  }
 }
 
 function buildHandItems(instance: CardInstance, category: CardCategory): MenuItem[] {
@@ -133,6 +144,86 @@ export function buildMenuItems(
     return buildFieldItems(instance, category)
   }
 
-  // Fallback for GY / BANISHED / EXTRA / DECK (browser-modal use cases — Phase 1–3 covers minimal).
+  if (kind === 'GY') return buildGYItems(instance, category)
+  if (kind === 'BANISHED') return buildBanishedItems(instance, category)
+  if (kind === 'EXTRA') return buildExtraItems(instance, category)
+  if (kind === 'DECK') return buildDeckItems(instance, category)
+
   return []
+}
+
+function buildGYItems(instance: CardInstance, category: CardCategory): MenuItem[] {
+  const duel = useDuelStore()
+  return [
+    { label: 'Reveal', run: () => duel.reveal(instance.uuid) },
+    {
+      label: category === 'monster' ? 'Special Summon' : 'Activate',
+      run: () => startReturnToField(instance, category),
+    },
+    { label: 'Banish', run: () => duel.banish(instance.uuid) },
+    { label: 'Return to Hand', run: () => duel.returnToHand(instance.uuid) },
+    { label: 'Return to Deck (top)', run: () => duel.returnToDeckTop(instance.uuid) },
+    { label: 'Return to Deck (bottom)', run: () => duel.returnToDeckBottom(instance.uuid) },
+    { label: 'Shuffle into Deck', run: () => duel.shuffleIntoDeck(instance.uuid) },
+  ]
+}
+
+function buildBanishedItems(instance: CardInstance, category: CardCategory): MenuItem[] {
+  const duel = useDuelStore()
+  return [
+    { label: 'Reveal', run: () => duel.reveal(instance.uuid) },
+    {
+      label: category === 'monster' ? 'Special Summon' : 'Activate',
+      run: () => startReturnToField(instance, category),
+    },
+    { label: 'Send to GY', run: () => duel.sendToGY(instance.uuid) },
+    { label: 'Return to Hand', run: () => duel.returnToHand(instance.uuid) },
+    { label: 'Return to Deck (top)', run: () => duel.returnToDeckTop(instance.uuid) },
+    { label: 'Return to Deck (bottom)', run: () => duel.returnToDeckBottom(instance.uuid) },
+    { label: 'Shuffle into Deck', run: () => duel.shuffleIntoDeck(instance.uuid) },
+  ]
+}
+
+function buildExtraItems(instance: CardInstance, category: CardCategory): MenuItem[] {
+  const duel = useDuelStore()
+  const items: MenuItem[] = [{ label: 'Reveal', run: () => duel.reveal(instance.uuid) }]
+  if (category === 'monster') {
+    items.push({
+      label: 'Special Summon',
+      run: () => startPicker(instance, 'special_summon', ['MZ', 'EMZ']),
+    })
+  }
+  items.push(
+    { label: 'Send to GY', run: () => duel.sendToGY(instance.uuid) },
+    { label: 'Banish', run: () => duel.banish(instance.uuid) },
+    { label: 'Return to Hand', run: () => duel.returnToHand(instance.uuid) },
+  )
+  return items
+}
+
+function buildDeckItems(instance: CardInstance, category: CardCategory): MenuItem[] {
+  const duel = useDuelStore()
+  const items: MenuItem[] = [{ label: 'Reveal', run: () => duel.reveal(instance.uuid) }]
+  if (category === 'monster') {
+    items.push({
+      label: 'Special Summon',
+      run: () => startPicker(instance, 'special_summon', ['MZ', 'EMZ']),
+    })
+  } else if (category === 'field-spell') {
+    items.push({
+      label: 'Activate',
+      run: () => startPicker(instance, 'activate_field', ['FIELD_SPELL']),
+    })
+  } else {
+    items.push(
+      { label: 'Activate', run: () => startPicker(instance, 'activate', ['ST']) },
+      { label: 'Set', run: () => startPicker(instance, 'set_st', ['ST']) },
+    )
+  }
+  items.push(
+    { label: 'Add to Hand', run: () => duel.returnToHand(instance.uuid) },
+    { label: 'Send to GY', run: () => duel.sendToGY(instance.uuid) },
+    { label: 'Banish', run: () => duel.banish(instance.uuid) },
+  )
+  return items
 }

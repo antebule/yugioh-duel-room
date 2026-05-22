@@ -27,6 +27,13 @@ const hasDeckActions = computed(
     props.zone.kind === 'DECK' && props.zone.owner === 'player' && cardCount.value > 0,
 )
 
+const STACKED_ZONE_KINDS = ['DECK', 'GY', 'BANISHED', 'EXTRA'] as const
+const isBrowsable = computed(
+  () =>
+    (STACKED_ZONE_KINDS as readonly string[]).includes(props.zone.kind) &&
+    cardCount.value > 0,
+)
+
 const isPickerTarget = computed(() => {
   const picker = uiStore.zonePicker
   if (!picker) return false
@@ -68,11 +75,16 @@ function runPickerAction(kind: ZonePickerKind, instanceUuid: string, zoneId: typ
 }
 
 function onZoneClick(): void {
-  if (!isPickerTarget.value) return
-  const picker = uiStore.zonePicker
-  if (!picker) return
-  runPickerAction(picker.kind, picker.instanceUuid, props.zone.id)
-  uiStore.cancelZonePicker()
+  if (isPickerTarget.value) {
+    const picker = uiStore.zonePicker
+    if (!picker) return
+    runPickerAction(picker.kind, picker.instanceUuid, props.zone.id)
+    uiStore.cancelZonePicker()
+    return
+  }
+  if (isBrowsable.value) {
+    uiStore.openZoneBrowser(props.zone.id)
+  }
 }
 </script>
 
@@ -81,7 +93,11 @@ function onZoneClick(): void {
     class="zone"
     :class="[
       `zone--${zone.kind.toLowerCase()}`,
-      { 'zone--filled': topInstanceUuid, 'zone--picker-target': isPickerTarget },
+      {
+        'zone--filled': topInstanceUuid,
+        'zone--picker-target': isPickerTarget,
+        'zone--browsable': isBrowsable && !isPickerTarget,
+      },
     ]"
     :data-zone-id="zone.id"
     @click="onZoneClick"
@@ -140,6 +156,10 @@ function onZoneClick(): void {
   box-shadow: 0 0 12px rgba(77, 163, 255, 0.45) inset;
   cursor: pointer;
   animation: zone-pulse 1.2s ease-in-out infinite;
+}
+
+.zone--browsable {
+  cursor: pointer;
 }
 
 .zone--picker-target:hover {
