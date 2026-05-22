@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import type { CardInstance, FieldPosition, Owner, ZoneId } from '@/duel/types'
+import { ref, toRaw } from 'vue'
+import type { CardInstance, DuelState, FieldPosition, Owner, Phase, Zone, ZoneId } from '@/duel/types'
 import { initialState } from '@/duel/initialState'
 import { applyEvent } from '@/core/reducers/duelReducer'
 import { dispatch, registerApply } from '@/core/events/dispatcher'
@@ -9,6 +9,33 @@ import { uuid } from '@/core/utils/uuid'
 import { mulberry32, randomSeed } from '@/core/rng/rng'
 import { shuffled } from '@/core/utils/shuffle'
 import type { Deck } from '@/deck/types'
+
+const PHASE_ORDER: Phase[] = ['DP', 'SP', 'M1', 'BP', 'M2', 'EP']
+
+// Deep snapshot of a reactive DuelState into plain (non-proxied) data.
+// structuredClone() can't traverse Vue's reactive Proxies, so we toRaw and
+// rebuild field-by-field. Preserves Infinity (Zone.capacity uses it).
+function snapshotDuelState(state: DuelState): DuelState {
+  const rawState = toRaw(state)
+  const zones = {} as Record<ZoneId, Zone>
+  for (const [id, zone] of Object.entries(rawState.zones) as [ZoneId, Zone][]) {
+    const z = toRaw(zone)
+    zones[id] = { ...z, cards: [...z.cards] }
+  }
+  const instances: Record<string, CardInstance> = {}
+  for (const [uuid, inst] of Object.entries(rawState.instances)) {
+    instances[uuid] = { ...toRaw(inst) }
+  }
+  return {
+    zones,
+    instances,
+    lifePoints: { ...toRaw(rawState.lifePoints) },
+    turn: rawState.turn,
+    activePlayer: rawState.activePlayer,
+    phase: rawState.phase,
+    rngSeed: rawState.rngSeed,
+  }
+}
 
 function makeBase(actor: Owner | 'system'): { id: string; at: number; actor: Owner | 'system' } {
   return { id: uuid(), at: Date.now(), actor }
@@ -351,6 +378,82 @@ export const useDuelStore = defineStore('duel', () => {
     })
   }
 
+  function setPhase(next: Phase): void {
+    const prev = state.value.phase
+    if (prev === next) return
+    const wraps = PHASE_ORDER.indexOf(next) < PHASE_ORDER.indexOf(prev)
+    const turn = wraps ? state.value.turn + 1 : state.value.turn
+    dispatch({
+      ...makeBase('system'),
+      type: 'PHASE_CHANGED',
+      prev,
+      next,
+      turn,
+    })
+  }
+
+  function endPhase(): void {
+    const idx = PHASE_ORDER.indexOf(state.value.phase)
+    const next = PHASE_ORDER[(idx + 1) % PHASE_ORDER.length]!
+    setPhase(next)
+  }
+
+  function rollDice(): 1 | 2 | 3 | 4 | 5 | 6 {
+    const seedUsed = state.value.rngSeed
+    const rng = mulberry32(seedUsed)
+    const result = (Math.floor(rng() * 6) + 1) as 1 | 2 | 3 | 4 | 5 | 6
+    state.value.rngSeed = (seedUsed + 1) >>> 0
+    dispatch({
+      ...makeBase('system'),
+      type: 'DICE_ROLLED',
+      result,
+      seedUsed,
+    })
+    return result
+  }
+
+  function coinToss(): 'heads' | 'tails' {
+    const seedUsed = state.value.rngSeed
+    const rng = mulberry32(seedUsed)
+    const result: 'heads' | 'tails' = rng() < 0.5 ? 'heads' : 'tails'
+    state.value.rngSeed = (seedUsed + 1) >>> 0
+    dispatch({
+      ...makeBase('system'),
+      type: 'COIN_TOSSED',
+      result,
+      seedUsed,
+    })
+    return result
+  }
+
+  function resetDuel(deck: Deck | null): void {
+    const prevState = snapshotDuelState(state.value)
+    state.value = initialState(randomSeed())
+
+    if (deck) {
+      const deckZoneId = `player:DECK:0` as ZoneId
+      const extraZoneId = `player:EXTRA:0` as ZoneId
+      for (const cardId of deck.main) {
+        const inst = makeInstance(cardId, 'player', deckZoneId)
+        state.value.instances[inst.uuid] = inst
+        state.value.zones[deckZoneId]!.cards.push(inst.uuid)
+      }
+      for (const cardId of deck.extra) {
+        const inst = makeInstance(cardId, 'player', extraZoneId)
+        state.value.instances[inst.uuid] = inst
+        state.value.zones[extraZoneId]!.cards.push(inst.uuid)
+      }
+    }
+
+    dispatch({
+      ...makeBase('system'),
+      type: 'DUEL_RESET',
+      prevState,
+    })
+
+    if (deck) shuffleDeck('player')
+  }
+
   return {
     state,
     adjustLife,
@@ -375,5 +478,10 @@ export const useDuelStore = defineStore('duel', () => {
     rotate,
     flip,
     reveal,
+    setPhase,
+    endPhase,
+    rollDice,
+    coinToss,
+    resetDuel,
   }
 })

@@ -70,6 +70,11 @@ export const useLogStore = defineStore('log', () => {
   const entries = ref<LogEntry[]>([])
 
   subscribe((event) => {
+    // DUEL_RESET wipes prior log entries — fresh duel, fresh log.
+    if (event.type === 'DUEL_RESET') {
+      entries.value = []
+      return
+    }
     // CARD_MOVED with reason 'draw' is suppressed because CARD_DRAWN logs the same action
     // with the card name.
     if (event.type === 'CARD_MOVED' && event.reason === 'draw') return

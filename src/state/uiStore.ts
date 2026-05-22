@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { ZoneId, ZoneKind } from '@/duel/types'
 
-export type ModalName = 'deck-import' | 'dice' | 'coin' | null
+export type ModalName = 'deck-import' | 'reset-confirm' | null
 
 export interface ContextMenuAnchor {
   x: number

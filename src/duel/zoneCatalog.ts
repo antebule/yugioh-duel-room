@@ -82,15 +82,3 @@ export function stWithUtilityRow(owner: Owner): PlaymatCell[] {
     makeZone(owner, 'DECK', 0),
   ]
 }
-
-export function emzCenterRow(): PlaymatCell[] {
-  return [
-    makeZone('opponent', 'BANISHED', 0),
-    null,
-    makeZone('player', 'EMZ', 0),
-    null,
-    makeZone('player', 'EMZ', 1),
-    null,
-    makeZone('player', 'BANISHED', 0),
-  ]
-}

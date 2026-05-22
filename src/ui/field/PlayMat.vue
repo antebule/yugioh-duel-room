@@ -1,19 +1,33 @@
 <script setup lang="ts">
-import { emzCenterRow, mzWithUtilityRow, stWithUtilityRow } from '@/duel/zoneCatalog'
+import { makeZone, mzWithUtilityRow, stWithUtilityRow } from '@/duel/zoneCatalog'
 import FieldRow from './FieldRow.vue'
+import Zone from './Zone.vue'
+import ControlsBar from '@/ui/bars/ControlsBar.vue'
 
 const opponentSt = stWithUtilityRow('opponent')
 const opponentMz = mzWithUtilityRow('opponent')
-const emz = emzCenterRow()
 const playerMz = mzWithUtilityRow('player')
 const playerSt = stWithUtilityRow('player')
+
+const oppBanished = makeZone('opponent', 'BANISHED', 0)
+const playerEmz0 = makeZone('player', 'EMZ', 0)
+const playerEmz1 = makeZone('player', 'EMZ', 1)
+const playerBanished = makeZone('player', 'BANISHED', 0)
 </script>
 
 <template>
   <div class="play-mat">
     <FieldRow :cells="opponentSt" mirrored />
     <FieldRow :cells="opponentMz" mirrored />
-    <FieldRow :cells="emz" />
+    <div class="play-mat__emz-row">
+      <Zone :zone="oppBanished" />
+      <ControlsBar segment="left" />
+      <Zone :zone="playerEmz0" />
+      <ControlsBar segment="middle" />
+      <Zone :zone="playerEmz1" />
+      <ControlsBar segment="right" />
+      <Zone :zone="playerBanished" />
+    </div>
     <FieldRow :cells="playerMz" />
     <FieldRow :cells="playerSt" />
   </div>
@@ -35,5 +49,13 @@ const playerSt = stWithUtilityRow('player')
   background: var(--color-field);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-field-edge);
+}
+
+.play-mat__emz-row {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-2);
 }
 </style>

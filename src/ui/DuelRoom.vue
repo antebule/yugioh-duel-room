@@ -7,9 +7,11 @@ import CardPreviewPanel from '@/ui/preview/CardPreviewPanel.vue'
 import DeckImportModal from '@/ui/modals/DeckImportModal.vue'
 import EmptyStateOverlay from '@/ui/modals/EmptyStateOverlay.vue'
 import ZoneBrowserModal from '@/ui/modals/ZoneBrowserModal.vue'
+import ResetConfirmModal from '@/ui/modals/ResetConfirmModal.vue'
 import ContextMenu from '@/ui/menu/ContextMenu.vue'
 import OpponentInfoBar from '@/ui/bars/OpponentInfoBar.vue'
 import PlayerInfoBar from '@/ui/bars/PlayerInfoBar.vue'
+import DuelActions from '@/ui/bars/DuelActions.vue'
 import { useDeckStore } from '@/state/deckStore'
 import { useUiStore } from '@/state/uiStore'
 import { useDeckImport } from '@/composables/useDeckImport'
@@ -57,7 +59,10 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
     <OpponentInfoBar class="duel-room__opp-bar" />
 
     <aside class="duel-room__preview">
-      <CardPreviewPanel />
+      <div class="duel-room__preview-inner">
+        <CardPreviewPanel />
+      </div>
+      <DuelActions />
     </aside>
 
     <main class="duel-room__center">
@@ -79,6 +84,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
 
     <Teleport to="body">
       <DeckImportModal v-if="uiStore.modal === 'deck-import'" />
+      <ResetConfirmModal v-if="uiStore.modal === 'reset-confirm'" />
       <ZoneBrowserModal v-if="uiStore.zoneBrowserZoneId" />
       <div v-if="uiStore.globalDragOver" class="drop-hint">
         <div class="drop-hint__inner">Drop .ydk to import</div>
@@ -128,9 +134,16 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
   border: 1px solid var(--color-field-edge);
   border-radius: var(--radius-md);
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   z-index: var(--z-preview);
+  overflow: hidden;
+  min-height: 0;
+}
+
+.duel-room__preview-inner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
   overflow: hidden;
 }
 

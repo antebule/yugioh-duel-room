@@ -18,14 +18,8 @@ export function applyEvent(state: DuelState, event: DuelEvent): void {
       return
     }
     case 'DUEL_RESET': {
-      const prev = event.prevState
-      state.zones = prev.zones
-      state.instances = prev.instances
-      state.lifePoints = prev.lifePoints
-      state.turn = prev.turn
-      state.activePlayer = prev.activePlayer
-      state.phase = prev.phase
-      state.rngSeed = prev.rngSeed
+      // No-op: resetDuel() installs the fresh state directly before dispatch.
+      // The event carries prevState only for future undo/replay.
       return
     }
     case 'DECK_SHUFFLED': {
