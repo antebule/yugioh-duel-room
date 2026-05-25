@@ -23,24 +23,33 @@ const card = computed(() =>
 const isDefense = computed(() => instance.value?.position.includes('defense') ?? false)
 const isFaceUp = computed(() => instance.value?.faceUp ?? false)
 
-// Cards in DECK or EXTRA aren't previewed — they're face-down to the controller
-// and showing the art on hover would leak the next draw / extra-deck contents.
-const isHidden = computed(() => {
+// Preview (right-side card info panel) is hidden for DECK and EXTRA so we don't
+// leak the next draw or the extra-deck contents.
+const previewHidden = computed(() => {
   const z = instance.value?.zoneId ?? ''
   return z.includes(':DECK:') || z.includes(':EXTRA:')
+})
+
+// Context menu is hidden for EXTRA, and for opponent's DECK. Player's DECK top
+// shows the deck context menu (Draw / Shuffle / Mill / Banish / View).
+const contextMenuHidden = computed(() => {
+  const z = instance.value?.zoneId ?? ''
+  if (z.includes(':EXTRA:')) return true
+  if (z.includes(':DECK:') && instance.value?.owner !== 'player') return true
+  return false
 })
 
 const rootEl = ref<HTMLElement | null>(null)
 
 function onEnter(): void {
-  if (isHidden.value) return
-  uiStore.hoverInstance(props.instanceUuid)
-  if (rootEl.value) ctx.onCardEnter(props.instanceUuid, rootEl.value)
+  if (!previewHidden.value) uiStore.hoverInstance(props.instanceUuid)
+  if (!contextMenuHidden.value && rootEl.value) {
+    ctx.onCardEnter(props.instanceUuid, rootEl.value)
+  }
 }
 function onLeave(): void {
-  if (isHidden.value) return
-  uiStore.unhoverInstance(props.instanceUuid)
-  ctx.onCardLeave(props.instanceUuid)
+  if (!previewHidden.value) uiStore.unhoverInstance(props.instanceUuid)
+  if (!contextMenuHidden.value) ctx.onCardLeave(props.instanceUuid)
 }
 </script>
 

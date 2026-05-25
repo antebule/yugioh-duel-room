@@ -22,11 +22,6 @@ const topInstanceUuid = computed(() => {
 })
 const cardCount = computed(() => zoneState.value?.cards.length ?? 0)
 
-const hasDeckActions = computed(
-  () =>
-    props.zone.kind === 'DECK' && props.zone.owner === 'player' && cardCount.value > 0,
-)
-
 const STACKED_ZONE_KINDS = ['DECK', 'GY', 'BANISHED', 'EXTRA'] as const
 const isBrowsable = computed(
   () =>
@@ -41,14 +36,6 @@ const isPickerTarget = computed(() => {
   if (!picker.validZoneKinds.includes(props.zone.kind)) return false
   return cardCount.value === 0
 })
-
-function onDraw(): void {
-  duelStore.drawCard('player')
-}
-
-function onShuffle(): void {
-  duelStore.shuffleDeck('player')
-}
 
 function runPickerAction(kind: ZonePickerKind, instanceUuid: string, zoneId: typeof props.zone.id): void {
   switch (kind) {
@@ -105,11 +92,6 @@ function onZoneClick(): void {
     <CardOnField v-if="topInstanceUuid" :instance-uuid="topInstanceUuid" />
     <span v-else class="zone__label">{{ label }}</span>
     <span v-if="cardCount > 1" class="zone__count">{{ cardCount }}</span>
-
-    <div v-if="hasDeckActions" class="zone__menu">
-      <button class="zone__menu-item" @click.stop="onDraw">Draw</button>
-      <button class="zone__menu-item" @click.stop="onShuffle">Shuffle</button>
-    </div>
   </div>
 </template>
 
@@ -189,40 +171,4 @@ function onZoneClick(): void {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
-.zone__menu {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: rgba(0, 0, 0, 0.78);
-  border-radius: var(--radius-sm);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-  z-index: var(--z-menu);
-}
-
-.zone:hover .zone__menu {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.zone__menu-item {
-  padding: 6px 14px;
-  background: var(--color-accent-blue);
-  color: #0a0e15;
-  border-radius: var(--radius-sm);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  font-weight: 500;
-  cursor: pointer;
-  min-width: 80px;
-}
-
-.zone__menu-item:hover {
-  opacity: 0.9;
-}
 </style>

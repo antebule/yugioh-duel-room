@@ -336,6 +336,45 @@ export const useDuelStore = defineStore('duel', () => {
     shuffleDeck(inst.owner)
   }
 
+  function deckTopUuid(owner: Owner): string | null {
+    const deckZone = state.value.zones[`${owner}:DECK:0` as ZoneId]
+    if (!deckZone || deckZone.cards.length === 0) return null
+    return deckZone.cards[deckZone.cards.length - 1] ?? null
+  }
+
+  function millTop(owner: Owner): void {
+    const topUuid = deckTopUuid(owner)
+    if (!topUuid) return
+    const gyZone = `${owner}:GY:0` as ZoneId
+    moveCard(topUuid, gyZone, {
+      position: 'face-up-attack',
+      faceUp: true,
+      reason: 'send_gy',
+    })
+  }
+
+  function banishTop(owner: Owner): void {
+    const topUuid = deckTopUuid(owner)
+    if (!topUuid) return
+    const banishedZone = `${owner}:BANISHED:0` as ZoneId
+    moveCard(topUuid, banishedZone, {
+      position: 'face-up-attack',
+      faceUp: true,
+      reason: 'banish',
+    })
+  }
+
+  function banishTopFaceDown(owner: Owner): void {
+    const topUuid = deckTopUuid(owner)
+    if (!topUuid) return
+    const banishedZone = `${owner}:BANISHED:0` as ZoneId
+    moveCard(topUuid, banishedZone, {
+      position: 'face-down-attack',
+      faceUp: false,
+      reason: 'banish',
+    })
+  }
+
   function rotate(cardUuid: string): void {
     const inst = state.value.instances[cardUuid]
     if (!inst) return
@@ -475,6 +514,9 @@ export const useDuelStore = defineStore('duel', () => {
     returnToDeckBottom,
     returnToHand,
     shuffleIntoDeck,
+    millTop,
+    banishTop,
+    banishTopFaceDown,
     rotate,
     flip,
     reveal,

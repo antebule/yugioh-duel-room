@@ -201,7 +201,22 @@ function buildExtraItems(instance: CardInstance, category: CardCategory): MenuIt
   return items
 }
 
-function buildDeckItems(instance: CardInstance, category: CardCategory): MenuItem[] {
+function buildDeckTopItems(instance: CardInstance): MenuItem[] {
+  const duel = useDuelStore()
+  const ui = useUiStore()
+  const owner = instance.owner
+  return [
+    { label: 'View', run: () => ui.openZoneBrowser(instance.zoneId) },
+    { label: 'Banish Face Down', run: () => duel.banishTopFaceDown(owner) },
+    { label: 'Banish top', run: () => duel.banishTop(owner) },
+    { label: 'Mill', run: () => duel.millTop(owner) },
+    { label: 'Shuffle', run: () => duel.shuffleDeck(owner) },
+    { label: 'Draw', run: () => duel.drawCard(owner) },
+  ]
+}
+
+// Per-card menu shown for individual deck cards inside the ZoneBrowserModal.
+function buildDeckBrowseItems(instance: CardInstance, category: CardCategory): MenuItem[] {
   const duel = useDuelStore()
   const items: MenuItem[] = [{ label: 'Reveal', run: () => duel.reveal(instance.uuid) }]
   if (category === 'monster') {
@@ -226,4 +241,12 @@ function buildDeckItems(instance: CardInstance, category: CardCategory): MenuIte
     { label: 'Banish', run: () => duel.banish(instance.uuid) },
   )
   return items
+}
+
+function buildDeckItems(instance: CardInstance, category: CardCategory): MenuItem[] {
+  const ui = useUiStore()
+  if (ui.zoneBrowserZoneId === instance.zoneId) {
+    return buildDeckBrowseItems(instance, category)
+  }
+  return buildDeckTopItems(instance)
 }
