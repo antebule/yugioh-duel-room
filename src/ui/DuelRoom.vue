@@ -100,13 +100,16 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
 
 <style scoped>
 .duel-room {
-  --duel-room-aspect: 1.55;
+  --duel-room-aspect: 1.65;
   width: min(95vw, calc(100vh * var(--duel-room-aspect)));
   aspect-ratio: var(--duel-room-aspect) / 1;
   min-width: 1000px;
   min-height: 650px;
   display: grid;
-  grid-template-columns: 22% 1fr 22%;
+  /* Center column gets a 590px floor (keeps cells ≈82px at the min viewport
+     with the asymmetric playmat); sides take up to 20% only once that floor
+     is satisfied, so they widen on larger screens without crowding the field. */
+  grid-template-columns: minmax(0, 20%) minmax(590px, 1fr) minmax(0, 20%);
   grid-template-rows: auto 1fr;
   grid-template-areas:
     'opp-bar opp-bar opp-bar'
@@ -170,7 +173,9 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 4fr 1fr;
+  /* Frame is aspect-locked to 7:5 and sizes off the column width;
+     hand row fills whatever vertical space is left, no gap between them. */
+  grid-template-rows: auto 1fr;
   gap: var(--space-2);
 }
 
@@ -178,6 +183,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
   position: relative;
   min-height: 0;
   min-width: 0;
+  aspect-ratio: 548 / 430;
   display: flex;
   align-items: center;
   justify-content: center;

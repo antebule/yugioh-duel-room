@@ -35,11 +35,11 @@ const playerBanished = makeZone('player', 'BANISHED', 0)
 
 <style scoped>
 .play-mat {
-  /* Aspect-locked to a 5-row × 7-col card grid (7 × 59 : 5 × 86 = 413 : 430).
-     Picks the larger of (fit-by-width, fit-by-height) using the parent's
-     container-query size, then aspect-ratio derives the other dimension. */
-  width: min(100cqw, calc(100cqh * 413 / 430));
-  aspect-ratio: 413 / 430;
+  /* 5-row × 7-col grid with square MZ/EMZ/ST cells and narrower portrait
+     corner cells. Width sums 59 + 5×86 + 59 = 548 card units, height sums
+     5×86 = 430, hence aspect 548/430 ≈ 1.274. */
+  width: min(100cqw, calc(100cqh * 548 / 430));
+  aspect-ratio: 548 / 430;
   max-width: 100%;
   max-height: 100%;
   display: flex;
@@ -55,7 +55,9 @@ const playerBanished = makeZone('player', 'BANISHED', 0)
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns:
+    minmax(0, 59fr) repeat(5, minmax(0, 86fr)) minmax(0, 59fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: var(--space-2);
 }
 </style>
