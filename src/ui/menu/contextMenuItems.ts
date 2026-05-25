@@ -1,6 +1,6 @@
 import type { CardInstance, ZoneKind } from '@/duel/types'
 import type { CardData, CardCategory } from '@/cards/types'
-import { classifyCard } from '@/cards/types'
+import { classifyCard, isExtraDeckMonster } from '@/cards/types'
 import { useDuelStore } from '@/state/duelStore'
 import { useUiStore } from '@/state/uiStore'
 import type { ZonePickerKind } from '@/state/uiStore'
@@ -48,11 +48,16 @@ function startReturnToField(instance: CardInstance, category: CardCategory): voi
   }
 }
 
-function buildHandItems(instance: CardInstance, category: CardCategory): MenuItem[] {
+function buildHandItems(
+  instance: CardInstance,
+  category: CardCategory,
+  cardData: CardData | undefined,
+): MenuItem[] {
   const duel = useDuelStore()
+  const extraDeck = cardData ? isExtraDeckMonster(cardData) : false
 
   if (category === 'monster') {
-    return [
+    const items: MenuItem[] = [
       {
         label: 'Normal Summon',
         run: () => startPicker(instance, 'normal_summon', ['MZ']),
@@ -68,10 +73,20 @@ function buildHandItems(instance: CardInstance, category: CardCategory): MenuIte
       { label: 'Reveal', run: () => duel.reveal(instance.uuid) },
       { label: 'Send to GY', run: () => duel.sendToGY(instance.uuid) },
       { label: 'Banish', run: () => duel.banish(instance.uuid) },
-      { label: 'Return to Deck (top)', run: () => duel.returnToDeckTop(instance.uuid) },
-      { label: 'Return to Deck (bottom)', run: () => duel.returnToDeckBottom(instance.uuid) },
-      { label: 'Shuffle into Deck', run: () => duel.shuffleIntoDeck(instance.uuid) },
     ]
+    if (extraDeck) {
+      items.push({
+        label: 'Return to Extra Deck',
+        run: () => duel.returnToExtraDeck(instance.uuid),
+      })
+    } else {
+      items.push(
+        { label: 'Return to Deck (top)', run: () => duel.returnToDeckTop(instance.uuid) },
+        { label: 'Return to Deck (bottom)', run: () => duel.returnToDeckBottom(instance.uuid) },
+        { label: 'Shuffle into Deck', run: () => duel.shuffleIntoDeck(instance.uuid) },
+      )
+    }
+    return items
   }
 
   if (category === 'field-spell') {
@@ -120,7 +135,11 @@ function buildHandItems(instance: CardInstance, category: CardCategory): MenuIte
   ]
 }
 
-function buildFieldItems(instance: CardInstance, category: CardCategory): MenuItem[] {
+function buildFieldItems(
+  instance: CardInstance,
+  category: CardCategory,
+  cardData: CardData | undefined,
+): MenuItem[] {
   const duel = useDuelStore()
   const validMove: ZoneKind[] =
     category === 'monster'
@@ -128,8 +147,9 @@ function buildFieldItems(instance: CardInstance, category: CardCategory): MenuIt
       : category === 'field-spell'
         ? ['FIELD_SPELL']
         : ['ST']
+  const extraDeck = cardData ? isExtraDeckMonster(cardData) : false
 
-  return [
+  const items: MenuItem[] = [
     { label: 'Rotate (ATK/DEF)', run: () => duel.rotate(instance.uuid) },
     { label: 'Flip', run: () => duel.flip(instance.uuid) },
     {
@@ -139,11 +159,21 @@ function buildFieldItems(instance: CardInstance, category: CardCategory): MenuIt
     { label: 'Destroy', run: () => duel.destroy(instance.uuid) },
     { label: 'Send to GY', run: () => duel.sendToGY(instance.uuid) },
     { label: 'Banish', run: () => duel.banish(instance.uuid) },
-    { label: 'Return to Hand', run: () => duel.returnToHand(instance.uuid) },
-    { label: 'Return to Deck (top)', run: () => duel.returnToDeckTop(instance.uuid) },
-    { label: 'Return to Deck (bottom)', run: () => duel.returnToDeckBottom(instance.uuid) },
-    { label: 'Shuffle into Deck', run: () => duel.shuffleIntoDeck(instance.uuid) },
   ]
+  if (extraDeck) {
+    items.push({
+      label: 'Return to Extra Deck',
+      run: () => duel.returnToExtraDeck(instance.uuid),
+    })
+  } else {
+    items.push(
+      { label: 'Return to Hand', run: () => duel.returnToHand(instance.uuid) },
+      { label: 'Return to Deck (top)', run: () => duel.returnToDeckTop(instance.uuid) },
+      { label: 'Return to Deck (bottom)', run: () => duel.returnToDeckBottom(instance.uuid) },
+      { label: 'Shuffle into Deck', run: () => duel.shuffleIntoDeck(instance.uuid) },
+    )
+  }
+  return items
 }
 
 export function buildMenuItems(
@@ -153,53 +183,88 @@ export function buildMenuItems(
   const kind = zoneKindOf(instance)
   const category: CardCategory = cardData ? classifyCard(cardData) : 'monster'
 
-  if (kind === 'HAND') return buildHandItems(instance, category)
+  if (kind === 'HAND') return buildHandItems(instance, category, cardData)
   if (kind === 'MZ' || kind === 'EMZ' || kind === 'ST' || kind === 'FIELD_SPELL') {
-    return buildFieldItems(instance, category)
+    return buildFieldItems(instance, category, cardData)
   }
 
-  if (kind === 'GY') return buildGYItems(instance, category)
-  if (kind === 'BANISHED') return buildBanishedItems(instance, category)
-  if (kind === 'EXTRA') return buildExtraItems(instance, category)
+  if (kind === 'GY') return buildGYItems(instance, category, cardData)
+  if (kind === 'BANISHED') return buildBanishedItems(instance, category, cardData)
+  if (kind === 'EXTRA') return buildExtraItems(instance, category, cardData)
   if (kind === 'DECK') return buildDeckItems(instance, category)
 
   return []
 }
 
-function buildGYItems(instance: CardInstance, category: CardCategory): MenuItem[] {
+function buildGYItems(
+  instance: CardInstance,
+  category: CardCategory,
+  cardData: CardData | undefined,
+): MenuItem[] {
   const duel = useDuelStore()
-  return [
+  const extraDeck = cardData ? isExtraDeckMonster(cardData) : false
+  const items: MenuItem[] = [
     { label: 'Reveal', run: () => duel.reveal(instance.uuid) },
     {
       label: category === 'monster' ? 'Special Summon' : 'Activate',
       run: () => startReturnToField(instance, category),
     },
     { label: 'Banish', run: () => duel.banish(instance.uuid) },
-    { label: 'Return to Hand', run: () => duel.returnToHand(instance.uuid) },
-    { label: 'Return to Deck (top)', run: () => duel.returnToDeckTop(instance.uuid) },
-    { label: 'Return to Deck (bottom)', run: () => duel.returnToDeckBottom(instance.uuid) },
-    { label: 'Shuffle into Deck', run: () => duel.shuffleIntoDeck(instance.uuid) },
   ]
+  if (extraDeck) {
+    items.push({
+      label: 'Return to Extra Deck',
+      run: () => duel.returnToExtraDeck(instance.uuid),
+    })
+  } else {
+    items.push(
+      { label: 'Return to Hand', run: () => duel.returnToHand(instance.uuid) },
+      { label: 'Return to Deck (top)', run: () => duel.returnToDeckTop(instance.uuid) },
+      { label: 'Return to Deck (bottom)', run: () => duel.returnToDeckBottom(instance.uuid) },
+      { label: 'Shuffle into Deck', run: () => duel.shuffleIntoDeck(instance.uuid) },
+    )
+  }
+  return items
 }
 
-function buildBanishedItems(instance: CardInstance, category: CardCategory): MenuItem[] {
+function buildBanishedItems(
+  instance: CardInstance,
+  category: CardCategory,
+  cardData: CardData | undefined,
+): MenuItem[] {
   const duel = useDuelStore()
-  return [
+  const extraDeck = cardData ? isExtraDeckMonster(cardData) : false
+  const items: MenuItem[] = [
     { label: 'Reveal', run: () => duel.reveal(instance.uuid) },
     {
       label: category === 'monster' ? 'Special Summon' : 'Activate',
       run: () => startReturnToField(instance, category),
     },
     { label: 'Send to GY', run: () => duel.sendToGY(instance.uuid) },
-    { label: 'Return to Hand', run: () => duel.returnToHand(instance.uuid) },
-    { label: 'Return to Deck (top)', run: () => duel.returnToDeckTop(instance.uuid) },
-    { label: 'Return to Deck (bottom)', run: () => duel.returnToDeckBottom(instance.uuid) },
-    { label: 'Shuffle into Deck', run: () => duel.shuffleIntoDeck(instance.uuid) },
   ]
+  if (extraDeck) {
+    items.push({
+      label: 'Return to Extra Deck',
+      run: () => duel.returnToExtraDeck(instance.uuid),
+    })
+  } else {
+    items.push(
+      { label: 'Return to Hand', run: () => duel.returnToHand(instance.uuid) },
+      { label: 'Return to Deck (top)', run: () => duel.returnToDeckTop(instance.uuid) },
+      { label: 'Return to Deck (bottom)', run: () => duel.returnToDeckBottom(instance.uuid) },
+      { label: 'Shuffle into Deck', run: () => duel.shuffleIntoDeck(instance.uuid) },
+    )
+  }
+  return items
 }
 
-function buildExtraItems(instance: CardInstance, category: CardCategory): MenuItem[] {
+function buildExtraItems(
+  instance: CardInstance,
+  category: CardCategory,
+  cardData: CardData | undefined,
+): MenuItem[] {
   const duel = useDuelStore()
+  const extraDeck = cardData ? isExtraDeckMonster(cardData) : false
   const items: MenuItem[] = [{ label: 'Reveal', run: () => duel.reveal(instance.uuid) }]
   if (category === 'monster') {
     items.push({
@@ -210,8 +275,10 @@ function buildExtraItems(instance: CardInstance, category: CardCategory): MenuIt
   items.push(
     { label: 'Send to GY', run: () => duel.sendToGY(instance.uuid) },
     { label: 'Banish', run: () => duel.banish(instance.uuid) },
-    { label: 'Return to Hand', run: () => duel.returnToHand(instance.uuid) },
   )
+  if (!extraDeck) {
+    items.push({ label: 'Return to Hand', run: () => duel.returnToHand(instance.uuid) })
+  }
   return items
 }
 

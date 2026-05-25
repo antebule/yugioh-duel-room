@@ -30,3 +30,7 @@ export function classifyCard(card: Pick<CardData, 'type' | 'race'>): CardCategor
   if (t.includes('trap')) return 'trap'
   return 'monster'
 }
+
+export function isExtraDeckMonster(card: Pick<CardData, 'type'>): boolean {
+  return /(Fusion|Synchro|XYZ|Link)/i.test(card.type)
+}
