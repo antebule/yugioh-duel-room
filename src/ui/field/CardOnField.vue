@@ -4,6 +4,7 @@ import { useDuelStore } from '@/state/duelStore'
 import { useCardCacheStore } from '@/state/cardCacheStore'
 import { useUiStore } from '@/state/uiStore'
 import { useContextMenu } from '@/composables/useContextMenu'
+import cardBackUrl from '@/assets/images/card-back.png'
 
 const props = defineProps<{
   instanceUuid: string
@@ -61,7 +62,14 @@ function onLeave(): void {
       loading="lazy"
       draggable="false"
     />
-    <div v-else-if="!isFaceUp" class="card-on-field__back" />
+    <img
+      v-else-if="!isFaceUp"
+      :src="cardBackUrl"
+      alt=""
+      class="card-on-field__back"
+      loading="lazy"
+      draggable="false"
+    />
     <div v-else class="card-on-field__loading">#{{ instance.cardId }}</div>
   </div>
 </template>
@@ -95,9 +103,11 @@ function onLeave(): void {
 .card-on-field__back {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #2a3344 0%, #1b2230 100%);
-  border: 1px solid var(--color-field-edge);
+  object-fit: contain;
   border-radius: var(--radius-sm);
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .card-on-field__loading {
