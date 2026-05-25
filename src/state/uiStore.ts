@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { ZoneId, ZoneKind } from '@/duel/types'
+import type { Owner, ZoneId, ZoneKind } from '@/duel/types'
 
 export type ModalName = 'deck-import' | 'reset-confirm' | null
 
@@ -11,7 +11,7 @@ export interface ContextMenuAnchor {
   height: number
 }
 
-export type ZonePickerKind = 'normal_summon' | 'special_summon' | 'set_monster' | 'activate' | 'set_st' | 'activate_field' | 'move_zone'
+export type ZonePickerKind = 'normal_summon' | 'special_summon' | 'set_monster' | 'activate' | 'set_st' | 'move_zone'
 
 export interface ZonePicker {
   instanceUuid: string
@@ -32,6 +32,8 @@ export const useUiStore = defineStore('ui', () => {
 
   const zonePicker = ref<ZonePicker | null>(null)
   const zoneBrowserZoneId = ref<ZoneId | null>(null)
+
+  const lastActivatedFieldSpellOwner = ref<Owner | null>(null)
 
   function openModal(name: Exclude<ModalName, null>): void {
     modal.value = name
@@ -95,6 +97,10 @@ export const useUiStore = defineStore('ui', () => {
     zoneBrowserZoneId.value = null
   }
 
+  function setLastActivatedFieldSpellOwner(owner: Owner | null): void {
+    lastActivatedFieldSpellOwner.value = owner
+  }
+
   return {
     modal,
     globalDragOver,
@@ -105,6 +111,8 @@ export const useUiStore = defineStore('ui', () => {
     contextMenuAnchor,
     zonePicker,
     zoneBrowserZoneId,
+    lastActivatedFieldSpellOwner,
+    setLastActivatedFieldSpellOwner,
     openModal,
     closeModal,
     setGlobalDragOver,

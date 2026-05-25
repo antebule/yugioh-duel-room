@@ -36,7 +36,13 @@ function startReturnToField(instance: CardInstance, category: CardCategory): voi
   if (category === 'monster') {
     startPicker(instance, 'special_summon', ['MZ', 'EMZ'])
   } else if (category === 'field-spell') {
-    startPicker(instance, 'activate_field', ['FIELD_SPELL'])
+    const ui = useUiStore()
+    ui.closeContextMenu()
+    ui.closeZoneBrowser()
+    useDuelStore().activateSpellTrap(
+      instance.uuid,
+      `${instance.owner}:FIELD_SPELL:0`,
+    )
   } else {
     startPicker(instance, 'activate', ['ST'])
   }
@@ -69,14 +75,22 @@ function buildHandItems(instance: CardInstance, category: CardCategory): MenuIte
   }
 
   if (category === 'field-spell') {
+    const ui = useUiStore()
+    const fieldZone = `${instance.owner}:FIELD_SPELL:0` as const
     return [
       {
         label: 'Activate',
-        run: () => startPicker(instance, 'activate_field', ['FIELD_SPELL']),
+        run: () => {
+          ui.closeContextMenu()
+          duel.activateSpellTrap(instance.uuid, fieldZone)
+        },
       },
       {
         label: 'Set',
-        run: () => startPicker(instance, 'set_st', ['FIELD_SPELL']),
+        run: () => {
+          ui.closeContextMenu()
+          duel.setSpellTrap(instance.uuid, fieldZone)
+        },
       },
       { label: 'Reveal', run: () => duel.reveal(instance.uuid) },
       { label: 'Send to GY', run: () => duel.sendToGY(instance.uuid) },
@@ -225,9 +239,14 @@ function buildDeckBrowseItems(instance: CardInstance, category: CardCategory): M
       run: () => startPicker(instance, 'special_summon', ['MZ', 'EMZ']),
     })
   } else if (category === 'field-spell') {
+    const ui = useUiStore()
     items.push({
       label: 'Activate',
-      run: () => startPicker(instance, 'activate_field', ['FIELD_SPELL']),
+      run: () => {
+        ui.closeContextMenu()
+        ui.closeZoneBrowser()
+        duel.activateSpellTrap(instance.uuid, `${instance.owner}:FIELD_SPELL:0`)
+      },
     })
   } else {
     items.push(

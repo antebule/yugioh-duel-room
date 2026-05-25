@@ -49,7 +49,6 @@ function runPickerAction(kind: ZonePickerKind, instanceUuid: string, zoneId: typ
       duelStore.setMonster(instanceUuid, zoneId)
       return
     case 'activate':
-    case 'activate_field':
       duelStore.activateSpellTrap(instanceUuid, zoneId)
       return
     case 'set_st':

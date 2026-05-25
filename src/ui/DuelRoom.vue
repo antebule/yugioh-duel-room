@@ -35,8 +35,6 @@ const pickerHint = computed(() => {
       return 'Click a Spell/Trap Zone to Activate · Esc to cancel'
     case 'set_st':
       return 'Click a Spell/Trap Zone to Set · Esc to cancel'
-    case 'activate_field':
-      return 'Click the Field Spell Zone to Activate · Esc to cancel'
     case 'move_zone':
       return 'Click a destination zone · Esc to cancel'
     default:

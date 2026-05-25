@@ -1,5 +1,10 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { makeZone, mzWithUtilityRow, stWithUtilityRow } from '@/duel/zoneCatalog'
+import type { Owner, ZoneId } from '@/duel/types'
+import { useDuelStore } from '@/state/duelStore'
+import { useUiStore } from '@/state/uiStore'
+import { useCardCacheStore } from '@/state/cardCacheStore'
 import FieldRow from './FieldRow.vue'
 import Zone from './Zone.vue'
 import ControlsBar from '@/ui/bars/ControlsBar.vue'
@@ -13,10 +18,44 @@ const oppBanished = makeZone('opponent', 'BANISHED', 0)
 const playerEmz0 = makeZone('player', 'EMZ', 0)
 const playerEmz1 = makeZone('player', 'EMZ', 1)
 const playerBanished = makeZone('player', 'BANISHED', 0)
+
+const duel = useDuelStore()
+const ui = useUiStore()
+const cardCache = useCardCacheStore()
+
+function faceUpFieldSpellUrl(owner: Owner): string | null {
+  const zone = duel.state.zones[`${owner}:FIELD_SPELL:0` as ZoneId]
+  const cardUuid = zone?.cards[0]
+  if (!cardUuid) return null
+  const inst = duel.state.instances[cardUuid]
+  if (!inst || !inst.faceUp) return null
+  return cardCache.byId(inst.cardId)?.imageUrlCropped ?? null
+}
+
+const activeFieldSpellImageUrl = computed<string | null>(() => {
+  const last = ui.lastActivatedFieldSpellOwner
+  if (last) {
+    const url = faceUpFieldSpellUrl(last)
+    if (url) return url
+    const other: Owner = last === 'player' ? 'opponent' : 'player'
+    return faceUpFieldSpellUrl(other)
+  }
+  return faceUpFieldSpellUrl('player') ?? faceUpFieldSpellUrl('opponent')
+})
+
+const playMatStyle = computed(() => {
+  const url = activeFieldSpellImageUrl.value
+  if (!url) return {}
+  return {
+    backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('${url}')`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+  }
+})
 </script>
 
 <template>
-  <div class="play-mat">
+  <div class="play-mat" :style="playMatStyle">
     <FieldRow :cells="opponentSt" mirrored />
     <FieldRow :cells="opponentMz" mirrored />
     <div class="play-mat__emz-row">

@@ -9,6 +9,7 @@ import { uuid } from '@/core/utils/uuid'
 import { mulberry32, randomSeed } from '@/core/rng/rng'
 import { shuffled } from '@/core/utils/shuffle'
 import type { Deck } from '@/deck/types'
+import { useUiStore } from './uiStore'
 
 const PHASE_ORDER: Phase[] = ['DP', 'SP', 'M1', 'BP', 'M2', 'EP']
 
@@ -214,6 +215,17 @@ export const useDuelStore = defineStore('duel', () => {
       newRotation,
       reason: opts.reason,
     })
+
+    const ui = useUiStore()
+    if (toZone.kind === 'FIELD_SPELL' && newFaceUp) {
+      ui.setLastActivatedFieldSpellOwner(inst.owner)
+    } else if (
+      fromZone.kind === 'FIELD_SPELL' &&
+      toZone.kind !== 'FIELD_SPELL' &&
+      ui.lastActivatedFieldSpellOwner === inst.owner
+    ) {
+      ui.setLastActivatedFieldSpellOwner(null)
+    }
   }
 
   function normalSummon(cardUuid: string, toZoneId: ZoneId): void {
@@ -398,6 +410,7 @@ export const useDuelStore = defineStore('duel', () => {
     const inst = state.value.instances[cardUuid]
     if (!inst) return
     const newFaceUp = !inst.faceUp
+    const zone = state.value.zones[inst.zoneId]
     dispatch({
       ...makeBase(inst.owner),
       type: 'CARD_FLIPPED',
@@ -405,6 +418,15 @@ export const useDuelStore = defineStore('duel', () => {
       prevFaceUp: inst.faceUp,
       newFaceUp,
     })
+
+    if (zone?.kind === 'FIELD_SPELL') {
+      const ui = useUiStore()
+      if (newFaceUp) {
+        ui.setLastActivatedFieldSpellOwner(inst.owner)
+      } else if (ui.lastActivatedFieldSpellOwner === inst.owner) {
+        ui.setLastActivatedFieldSpellOwner(null)
+      }
+    }
   }
 
   function reveal(cardUuid: string): void {
