@@ -16,10 +16,10 @@ The pacing rule still applies: **finish one step at a time, then stop and ask be
 | Field-spell background scope | Either side's face-up Field Spell can set the background; if both are face-up, the most-recently activated one wins. |
 | Field "Overlay" action | **Dropped** — XYZ summoning happens only via Extra Deck OL ATK / OL DEF. No on-field manual overlay action. |
 | Field Spell Set | Auto-places face-down in the FIELD_SPELL zone, symmetric with Activate (no picker). |
-| Hand fan kick-in | Only when hand size > 6. ≤ 6 cards stay in a flat horizontal row; ≥ 7 fan into an arc. |
+| Hand overlap kick-in | Only when hand size > 6. ≤ 6 cards stay in a flat row with gaps; ≥ 7 cards stay flat but overlap horizontally to fit the strip (no fan/rotation). |
 | Playmat aspect change | Change from 413:430 → 7:5 so MZ/EMZ/ST cells fall out as 1:1 squares. |
 | XYZ host return-to-Extra-Deck | Materials still go to GY (Return-to-Extra-Deck is treated the same as any other host-leaves-field event). |
-| Step ordering | 1: square cells → 2: card-back → 3: hand fan → 4: deck context menu → 5: field spell → 6: Extra-Deck routing → 7: XYZ overlay. |
+| Step ordering | 1: square cells → 2: card-back → 3: hand overlap → 4: deck context menu → 5: field spell → 6: Extra-Deck routing → 7: XYZ overlay. |
 
 ---
 
@@ -51,15 +51,22 @@ Each step has a concrete done-when criterion and ends with a manual smoke check 
 
 ---
 
-### Step 3 — Hand fan-shape spread (kicks in at > 6 cards)
+### Step 3 — Hand overlap (kicks in at > 6 cards)
 
-**Goal:** ≤ 6 cards stay in the current flat flex row. ≥ 7 cards fan into a smooth arc that always fits the hand strip width without clipping.
+**Goal:** ≤ 6 cards stay in the current flat flex row with a small gap. ≥ 7 cards keep the flat row but overlap horizontally so the whole hand fits the strip — no rotation, no arc. Stays responsive and stable even with very large hands (60-card deck top-decked into hand).
 
-- [src/ui/hand/Hand.vue](src/ui/hand/Hand.vue): add a computed `isFanned = handCards.length > 6`; pass `--count` (and `--idx` per card) as CSS vars. When fanned, switch the container from `display: flex` to `position: relative` so each card can be absolutely placed along the arc.
-- [src/ui/hand/HandCard.vue](src/ui/hand/HandCard.vue): when the parent is `.hand--fanned`, use a CSS `calc()` to derive a per-card angle (`(--idx - (--count - 1) / 2) * <stepDeg>`) and translateX so cards overlap. Pivot point is a virtual center below the strip (long radius) so the bottom of each card rests on a curve. Hover state must override the fan: `translateY(-12px) scale(1.18) rotate(0)` and a higher z-index so the hovered card flattens and pops above its neighbours.
-- Step degree and overlap are tuned by feel; the formula scales: more cards → tighter overlap, slightly larger spread.
+- [src/ui/hand/Hand.vue](src/ui/hand/Hand.vue):
+  - Add a computed `isOverlapped = handCards.length > 6` and apply class `.hand--overlap` when true. Set the inline CSS var `--count` (the hand size) on the container so the overlap math can scale.
+  - Add `min-width: 0; min-height: 0; container-type: size` to `.hand`. The `container-type: size` does double duty: it establishes size containment so the cards' `aspect-ratio + height: 100%` intrinsic sizing can't propagate up into the parent grid track and collapse the strip, and it enables `cqi`/`cqh` units for the overlap math below.
+  - In `.hand--overlap`, drop `gap` to 0 and derive a `--hand-overlap` length from the strip's own width and height:
+    - `--card-w: calc(100cqh * 59 / 86)` (card width derived from strip height).
+    - `--hand-overlap: max(-0.9 × --card-w, min(-12px, fit-margin))` where `fit-margin = (100cqi - --count × --card-w) / (--count - 1)`.
+    - At low counts overlap stays at the soft −12px; as count grows it deepens just enough to fit the strip; it bottoms out at −90% of card width so a sliver of every card stays visible even at deck-sized hands.
+- [src/ui/hand/HandCard.vue](src/ui/hand/HandCard.vue): no per-card props needed. Add a single rule `.hand-card + .hand-card { margin-left: var(--hand-overlap, 0px); }` so adjacent cards pull leftward by the inherited custom property. The existing hover rule (`translateY(-12px) scale(1.18)` + `z-index: var(--z-hand-hover)`) already lifts the hovered card cleanly above its overlapping neighbours.
+- [src/ui/DuelRoom.vue](src/ui/DuelRoom.vue) (`.duel-room__center`): change `grid-template-rows: auto 1fr` → `auto minmax(0, 1fr)`. Bare `1fr` is shorthand for `minmax(auto, 1fr)`, where `auto` = min-content of items in the track; with many overlapping cards the flex row's min-content balloons and pushes the hand track past its `1fr` share, eating the strip's height. `minmax(0, 1fr)` pins the floor at 0.
+- No absolute positioning, no `--idx`, no rotation.
 
-**Done-when:** Drawing the 7th card transitions the row into a fan; all cards remain on-screen; hovering any card straightens + enlarges it without overlap/clipping; trimming back to ≤ 6 returns to the flat row.
+**Done-when:** Drawing the 7th card switches the row from gapped to overlapped; all cards remain on-screen; hovering any card lifts + enlarges it above its neighbours; trimming back to ≤ 6 returns to the flat gapped row; resizing the window or top-decking the entire deck into the hand never collapses the strip.
 
 ---
 
@@ -187,12 +194,12 @@ The on-field "Overlay" action is **dropped** per the locked decision — XYZ sum
 - [src/ui/field/PlayMat.vue](src/ui/field/PlayMat.vue) — square cells, Field Spell background image.
 - [src/duel/types.ts](src/duel/types.ts) — `overlayUuids` / `overlayHostUuid` on `CardInstance`.
 - [src/cards/types.ts](src/cards/types.ts) — `isExtraDeckMonster`, `isXyzMonster` helpers.
-- [src/ui/hand/Hand.vue](src/ui/hand/Hand.vue) + [src/ui/hand/HandCard.vue](src/ui/hand/HandCard.vue) — fan layout.
+- [src/ui/hand/Hand.vue](src/ui/hand/Hand.vue) + [src/ui/hand/HandCard.vue](src/ui/hand/HandCard.vue) — overlap layout.
 
 ## End-to-end verification (after all 7 steps)
 
 1. Import a deck containing at least one Field Spell, at least one XYZ Monster, and at least one Fusion/Synchro/Link → start a duel.
-2. Draw 8 cards → hand fans cleanly, no clipping.
+2. Draw 8 cards → hand overlaps cleanly, no clipping.
 3. Activate the Field Spell from hand → no picker, card snaps to FIELD_SPELL zone, background changes.
 4. Normal Summon → set the monster in DEF → confirm card-back image; rotate to ATK → portrait fits.
 5. Hover deck → menu shows Draw / Shuffle / Mill / Banish top / Banish FD / View; perform Mill and Banish FD; check log.

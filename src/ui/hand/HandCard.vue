@@ -68,6 +68,10 @@ function onLeave(): void {
   flex-shrink: 0;
 }
 
+.hand-card + .hand-card {
+  margin-left: var(--hand-overlap, 0px);
+}
+
 .hand-card:hover,
 .hand-card--active {
   transform: translateY(-12px) scale(1.18);

@@ -175,7 +175,9 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
   display: grid;
   /* Frame is aspect-locked to 7:5 and sizes off the column width;
      hand row fills whatever vertical space is left, no gap between them. */
-  grid-template-rows: auto 1fr;
+  /* minmax(0, 1fr) on the hand row prevents flex/aspect-ratio intrinsic
+     sizing of the cards from feeding back into the grid track size. */
+  grid-template-rows: auto minmax(0, 1fr);
   gap: var(--space-2);
 }
 
