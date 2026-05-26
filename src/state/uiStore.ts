@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Owner, ZoneId, ZoneKind } from '@/duel/types'
+import type { FieldPosition, Owner, ZoneId, ZoneKind } from '@/duel/types'
 
 export type ModalName = 'deck-import' | 'reset-confirm' | null
 
@@ -11,12 +11,22 @@ export interface ContextMenuAnchor {
   height: number
 }
 
-export type ZonePickerKind = 'normal_summon' | 'special_summon' | 'set_monster' | 'activate' | 'set_st' | 'move_zone'
+export type ZonePickerKind =
+  | 'normal_summon'
+  | 'special_summon'
+  | 'set_monster'
+  | 'activate'
+  | 'set_st'
+  | 'move_zone'
+  | 'overlay_target'
+  | 'xyz_summon'
 
 export interface ZonePicker {
   instanceUuid: string
   kind: ZonePickerKind
   validZoneKinds: ZoneKind[]
+  // For 'xyz_summon': position the XYZ should be summoned in (face-up-attack/defense).
+  position?: FieldPosition
 }
 
 export const useUiStore = defineStore('ui', () => {

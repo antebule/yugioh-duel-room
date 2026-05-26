@@ -32,6 +32,9 @@ const isBrowsable = computed(
 const isPickerTarget = computed(() => {
   const picker = uiStore.zonePicker
   if (!picker) return false
+  // Overlay/XYZ pickers target a face-up monster card, not an empty zone.
+  // CardOnField intercepts those clicks; zones should not highlight.
+  if (picker.kind === 'overlay_target' || picker.kind === 'xyz_summon') return false
   if (props.zone.owner !== 'player') return false
   if (!picker.validZoneKinds.includes(props.zone.kind)) return false
   return cardCount.value === 0

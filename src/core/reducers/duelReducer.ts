@@ -32,11 +32,56 @@ export function applyEvent(state: DuelState, event: DuelEvent): void {
       const inst = state.instances[event.cardUuid]
       if (!inst) return
       const fromZone = state.zones[event.from.zoneId]
+      const toZone = state.zones[event.to.zoneId]
+
+      if (event.reason === 'overlay_attached') {
+        // If this instance was already a material, detach from old host first
+        // (handles material-transfer when a host becomes a material itself, or
+        // when an XYZ is summoned onto a host and adopts its materials).
+        if (inst.overlayHostUuid) {
+          const oldHost = state.instances[inst.overlayHostUuid]
+          if (oldHost?.overlayUuids) {
+            const oldIdx = oldHost.overlayUuids.indexOf(event.cardUuid)
+            if (oldIdx !== -1) oldHost.overlayUuids.splice(oldIdx, 1)
+          }
+        }
+        // Remove from old zone's cards (when on-field), do NOT append to any zone.
+        if (fromZone) {
+          const idx = fromZone.cards.indexOf(event.cardUuid)
+          if (idx !== -1) fromZone.cards.splice(idx, 1)
+        }
+        // Link to new host.
+        if (event.hostUuid) {
+          const host = state.instances[event.hostUuid]
+          if (host) {
+            if (!host.overlayUuids) host.overlayUuids = []
+            host.overlayUuids.push(event.cardUuid)
+          }
+        }
+        inst.overlayHostUuid = event.hostUuid
+        inst.zoneId = event.to.zoneId
+        inst.position = event.newPosition
+        inst.faceUp = event.newFaceUp
+        inst.rotation = event.newRotation
+        return
+      }
+
+      // Any other reason on an instance that is currently a material is a
+      // forced detach (covers explicit overlay_detached AND host-leaves-field
+      // cascades that send each material to GY via reason: 'send_gy').
+      if (inst.overlayHostUuid) {
+        const host = state.instances[inst.overlayHostUuid]
+        if (host?.overlayUuids) {
+          const idx = host.overlayUuids.indexOf(event.cardUuid)
+          if (idx !== -1) host.overlayUuids.splice(idx, 1)
+        }
+        inst.overlayHostUuid = undefined
+      }
+
       if (fromZone) {
         const idx = fromZone.cards.indexOf(event.cardUuid)
         if (idx !== -1) fromZone.cards.splice(idx, 1)
       }
-      const toZone = state.zones[event.to.zoneId]
       if (toZone) {
         const insertAt = Math.min(event.to.index, toZone.cards.length)
         toZone.cards.splice(insertAt, 0, event.cardUuid)
@@ -46,6 +91,15 @@ export function applyEvent(state: DuelState, event: DuelEvent): void {
       inst.position = event.newPosition
       inst.faceUp = event.newFaceUp
       inst.rotation = event.newRotation
+
+      // Keep attached materials' zoneId aligned with their host's current
+      // zone, so a host moving between MZ/EMZ slots drags its chips along.
+      if (inst.overlayUuids && inst.overlayUuids.length > 0) {
+        for (const matUuid of inst.overlayUuids) {
+          const mat = state.instances[matUuid]
+          if (mat) mat.zoneId = inst.zoneId
+        }
+      }
       return
     }
     case 'CARD_POSITION_CHANGED': {

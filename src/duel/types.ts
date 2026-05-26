@@ -35,6 +35,11 @@ export interface CardInstance {
   faceUp: boolean
   counters: number
   isToken?: boolean
+  // XYZ overlay state:
+  //   - overlayUuids: ordered list (bottom → top) of material UUIDs attached to this host.
+  //   - overlayHostUuid: when set, this instance is a material attached to the named host.
+  overlayUuids?: string[]
+  overlayHostUuid?: string
 }
 
 export interface Zone {

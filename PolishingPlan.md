@@ -14,7 +14,7 @@ The pacing rule still applies: **finish one step at a time, then stop and ask be
 |---|---|
 | Card-back image | User will supply an image asset; we drop it into `src/assets/images/card-back.<ext>` and reference it via Vite's asset URL import. |
 | Field-spell background scope | Either side's face-up Field Spell can set the background; if both are face-up, the most-recently activated one wins. |
-| Field "Overlay" action | **Dropped** — XYZ summoning happens only via Extra Deck OL ATK / OL DEF. No on-field manual overlay action. |
+| Field "Overlay" action | **Two entry points:** (a) on-field `Overlay` action picks one target host and turns the source into a material; (b) Extra-Deck `OL ATK` / `OL DEF` (XYZ only, gated on ≥1 face-up field monster) summons the XYZ into the picked target's zone with that target as the first material. Multi-material XYZs are built by repeated on-field `Overlay`. |
 | Field Spell Set | Auto-places face-down in the FIELD_SPELL zone, symmetric with Activate (no picker). |
 | Hand overlap kick-in | Only when hand size > 6. ≤ 6 cards stay in a flat row with gaps; ≥ 7 cards stay flat but overlap horizontally to fit the strip (no fan/rotation). |
 | Playmat aspect change | Change from 413:430 → 7:5 so MZ/EMZ/ST cells fall out as 1:1 squares. |
@@ -127,73 +127,99 @@ Each step has a concrete done-when criterion and ends with a manual smoke check 
 
 ---
 
-### Step 7 — XYZ Overlay system (Extra-Deck only)
+### Step 7 — XYZ Overlay system
 
-**Largest change. Touches `CardInstance` shape, `duelStore`, `Zone.vue`/`CardOnField.vue` rendering, `contextMenuItems.ts`, and `uiStore` (new picker kinds).**
+**Largest change. Touches `CardInstance` shape, `duelStore`, `Zone.vue` / `CardOnField.vue` rendering, a new `OverlayChip.vue`, `contextMenuItems.ts`, `uiStore` (two new picker kinds), the reducer, and `MoveReason`.**
 
-The on-field "Overlay" action is **dropped** per the locked decision — XYZ summoning only happens through the Extra Deck OL ATK / OL DEF entry points.
+Two entry points create overlays. Both pickers select **exactly one** face-up player-owned MZ/EMZ monster as the target. When exactly one valid target exists at action time, the picker is skipped and the action runs immediately.
+
+**1. On-field Overlay** — a face-up player-owned MZ/EMZ monster that is not currently a material (hosts are allowed — this is how multi-material XYZs are stacked) gets an `Overlay` menu item, gated on at least one *other* eligible monster existing. The right-clicked monster acts as the **host**; the clicked target becomes the new **material**. On confirmation: if the target is itself a host, its existing materials are first re-parented onto the new host (so transferring a host onto another host stacks all materials beneath the new top); then the target is removed from its zone's `cards` and attached to the host; finally the host moves into the target's vacated zone. The host's pre-existing materials' `zoneId`s follow it automatically (reducer invariant).
+
+**2. Extra-Deck OL ATK / OL DEF** — XYZ Extra-Deck cards get two extra menu items, gated on ≥1 face-up player-owned MZ/EMZ monster. Clicking selects exactly one such monster. On confirmation: the target *and all of the target's existing materials* are transferred to the new XYZ host (final chip order = target's previous materials, then the target appended on top), then the XYZ is special-summoned face-up-attack or face-up-defense into the target's zone.
+
+In both flows: ESC cancels at any stage; cancel is non-destructive.
 
 **Data model** ([src/duel/types.ts](src/duel/types.ts)):
 
 - Extend `CardInstance` with two optional fields:
-  - `overlayUuids?: string[]` — for an XYZ host: ordered list of attached material UUIDs (bottom → top).
+  - `overlayUuids?: string[]` — for a host: ordered list of attached material UUIDs (bottom → top).
   - `overlayHostUuid?: string` — for a material: UUID of the host it's attached to.
-- Attached materials keep their existing `zoneId` (the host's zone) but are removed from the parent `Zone.cards` array. The host's slot stays capacity-1; materials are tracked only via the host's `overlayUuids` array. Removing materials from `Zone.cards` keeps existing zone-rendering code (which iterates `Zone.cards`) unaware of them.
+- Materials are removed from their old zone's `Zone.cards` array. Their `zoneId` is updated to the host's current zone — and the reducer keeps it in sync whenever the host changes zones (so chips locate correctly after moves).
 
 **Helper** ([src/cards/types.ts](src/cards/types.ts)):
 
-- `isXyzMonster(cardData)` — returns true when `cardData.type` matches `/XYZ/i`. Used by `buildExtraItems` to decide whether to show OL ATK / OL DEF.
+- `isXyzMonster(cardData)` — returns true when `cardData.type` matches `/XYZ/i`. Used by `buildExtraItems` to decide whether to surface OL ATK / OL DEF.
 
 **duelStore commands** ([src/state/duelStore.ts](src/state/duelStore.ts)):
 
-- `xyzSummon(extraDeckCardUuid, targetZoneId, materialUuids[], position: 'face-up-attack' | 'face-up-defense')` — places the XYZ in the target MZ/EMZ; for each material: remove from its current zone's `cards`, set its `overlayHostUuid` to the host's uuid; the host's `overlayUuids` is populated in pick order. One log entry per material attached + one for the XYZ summon itself.
-- `detachMaterial(materialUuid)` → removes uuid from host's `overlayUuids`, clears `overlayHostUuid`, moves the material to the owner's GY face-up.
-- `banishMaterial(materialUuid)` → same, but destination is BANISHED face-up.
-- Wrap all host-leaves-field commands (`sendToGY`, `destroy`, `banish`, `returnToHand`, `returnToDeckTop`, `returnToDeckBottom`, `shuffleIntoDeck`, `returnToExtraDeck`, `moveZone`): if `overlayUuids.length > 0`, send each material to GY first (one `CARD_MOVED` per material), then perform the host move. Per spec: "When the top overlayed card leaves the field, the attached monsters go to the Graveyard".
+- `attachAsMaterial(hostUuid, materialUuid)` — backs the on-field Overlay flow. Validates both exist, both face-up, same controller, neither is currently a material, both on MZ/EMZ, host !== material. If the material is itself a host, dispatches one `overlay_attached` per inherited material (re-parenting them to the new host). Then dispatches `overlay_attached` for the material itself. Finally dispatches a `move_zone` CARD_MOVED for the host into the material's old zone.
+- `xyzSummonOnto(extraDeckCardUuid, targetUuid, position: 'face-up-attack' | 'face-up-defense')` — backs OL ATK / OL DEF. Re-parents the target's existing materials onto the new XYZ via `overlay_attached`, attaches the target itself, then dispatches a `special_summon` CARD_MOVED moving the XYZ from EXTRA into the target's zone in the chosen position.
+- `detachMaterial(materialUuid)` — moves the material to its owner's GY face-up via a CARD_MOVED with `reason: 'overlay_detached'`. The reducer pops uuid from the host's `overlayUuids` and clears the material's `overlayHostUuid`.
+- `banishMaterial(materialUuid)` — same as `detachMaterial` but destination is BANISHED face-up.
+- **Host-leaves-field cascade** — wrapped inside `moveCard()` itself, so every public command that funnels through it (`sendToGY`, `destroy`, `banish`, `returnToHand`, `returnToDeckTop`, `returnToDeckBottom`, `shuffleIntoDeck`, `returnToExtraDeck`, `moveZone`) gets the behavior for free. If the moving instance has `overlayUuids.length > 0` and the destination zone is not MZ/EMZ, each material is dispatched to its owner's GY first via a `send_gy` CARD_MOVED carrying the host's uuid. The reducer treats `overlayHostUuid` + non-overlay reason as a forced detach before applying the normal zone move.
 
 **Event types** ([src/core/events/eventTypes.ts](src/core/events/eventTypes.ts)):
 
-- The existing `CARD_MOVED` event is sufficient for material transfers; add a new `MoveReason`: `'overlay_attached'` and `'overlay_detached'` (so the log can read "Player attached X to Y" / "Player detached X from Y").
+- Add `MoveReason` values `'overlay_attached'` and `'overlay_detached'`. The existing `CARD_MOVED` event is reused for both — no new event kinds.
+- `CARD_MOVED` gains an optional `hostUuid?: string`, carried for both overlay reasons *and* for the host-leaves-field cascade `send_gy` events, so the reducer can locate the host without scanning all zones.
 
-**Rendering** ([src/ui/field/Zone.vue](src/ui/field/Zone.vue) + [src/ui/field/CardOnField.vue](src/ui/field/CardOnField.vue)):
+**Reducer** ([src/core/reducers/duelReducer.ts](src/core/reducers/duelReducer.ts)):
 
-- When the top card has `overlayUuids.length > 0`, `CardOnField` renders small overlay "chips" peeking out below the host (offset −6px per material, smaller scale, slight horizontal stagger). Each chip is a tiny `CardOnField`-like component that renders the material's image and registers hover for its own context menu.
-- The host's context menu stays the full Field menu — when the host leaves the field, materials cascade to GY via the duelStore wrapper.
+- Extend the `CARD_MOVED` branch to maintain `overlayUuids` / `overlayHostUuid` based on `reason`:
+  - `'overlay_attached'` → if the instance was already a material, first splice it out of its previous host's `overlayUuids` (covers material transfer when an XYZ adopts a host's materials, or when overlaying a host onto another host). Remove from old zone's `cards`, push uuid into the new host's `overlayUuids`, set `instance.overlayHostUuid = event.hostUuid`, update `instance.zoneId = event.to.zoneId`. Does NOT append to any zone's `cards`.
+  - `'overlay_detached'` (or any other non-overlay reason on a material) → clear the material's `overlayHostUuid`, splice uuid out of the host's `overlayUuids`, then run the normal zone-move logic. The "any other reason" branch covers the host-leaves-field cascade where materials get a normal `send_gy`.
+- **Host-move material-sync invariant:** at the end of every non-overlay `CARD_MOVED`, if the moved instance still has `overlayUuids`, every attached material's `zoneId` is re-synced to the host's new `zoneId`. This keeps a host's chips locatable when the host changes zones (the trailing `move_zone` at the end of `attachAsMaterial`, or any other host move within MZ/EMZ).
+
+**Picker UX** ([src/state/uiStore.ts](src/state/uiStore.ts) + [src/ui/field/Zone.vue](src/ui/field/Zone.vue)):
+
+- Add two `ZonePickerKind`s: `'overlay_target'` (on-field Overlay) and `'xyz_summon'` (OL ATK / OL DEF). Both store the source `instanceUuid`; `ZonePicker` gains an optional `position` for `xyz_summon`.
+- These pickers select a face-up player MZ/EMZ monster, NOT an empty zone. `Zone.vue.isPickerTarget` explicitly excludes these kinds from empty-zone highlighting, and the click is intercepted in `CardOnField.vue` instead — the valid target card pulses a blue outline highlight and runs the corresponding duelStore command on click.
+- For on-field Overlay: the source's own zone (and the source card itself) is excluded from valid targets.
+- For OL ATK / OL DEF: the Extra-Deck menu items are hidden unless ≥1 face-up player MZ/EMZ monster exists.
+- When the menu action fires and exactly one valid target exists, the picker is skipped and the command runs immediately.
+- ESC cancels via the existing `cancelZonePicker` path.
+
+**Rendering** ([src/ui/field/CardOnField.vue](src/ui/field/CardOnField.vue) + new [src/ui/field/OverlayChip.vue](src/ui/field/OverlayChip.vue)):
+
+- When the top card on a zone has `overlayUuids.length > 0`, `CardOnField` renders one `OverlayChip` per attached material as a horizontal right-fan inside the host's zone:
+  - The host visual shifts from centered to the zone's left edge (via `justify-content: flex-start` on `.card-on-field--has-materials`).
+  - Each chip is full card-size (`height: 100%; aspect-ratio: 59/86`), absolute-positioned with `left: (i+1) × (1 − 59/86) / N` of zone-width, so the rightmost chip's right edge always lands at the zone's right edge regardless of N.
+  - Z-index counts down (`-1 − i`) so higher-index chips sit further back; the host stays on top.
+- The host visual elements (`<img>`, card-back `<img>`, loading `<div>`) are sized to the card's aspect ratio (not the full zone), so the hover hit area matches what the user sees. `@mouseenter` / `@mouseleave` are bound to the host element (not the zone-spanning parent), and the host element is the context-menu anchor, so the menu lines up with the visual card whether materials are attached or not.
+- Defense rotation uses `rotate(-90deg)` (counter-clockwise) applied to the host visual elements only — chips stay in face-up-attack orientation. When `--has-materials` and `--defense` are both set, the host re-centers (overrides the left-align) so the rotated landscape card fits inside the zone.
+- `OverlayChip.vue` renders the material's card image, registers its own hover (fires both the right-side preview panel and the context-menu open path), and the menu short-circuits via `overlayHostUuid` to the 2-item `Banish` / `Detach` menu.
 
 **Context menu items** ([src/ui/menu/contextMenuItems.ts](src/ui/menu/contextMenuItems.ts)):
 
-- `buildExtraItems`: when `isXyzMonster(cardData)`, prepend two items above the existing Special Summon:
-  - `OL ATK` → start an `xyz_summon_atk` picker.
-  - `OL DEF` → start an `xyz_summon_def` picker.
-- For instances with `overlayHostUuid` set (i.e. materials), `buildMenuItems` short-circuits to a 2-item menu:
-  - `Banish` → `duel.banishMaterial(uuid)`
-  - `Detach` → `duel.detachMaterial(uuid)`
-
-**XYZ summon picker UX** ([src/state/uiStore.ts](src/state/uiStore.ts)):
-
-- Add picker kinds `xyz_summon_atk` and `xyz_summon_def`, each storing `instanceUuid`, position, and a running `selectedMaterialUuids: string[]`.
-- Step 1: highlight valid MZ/EMZ zones; clicking one fixes the target zone and advances to Step 2.
-- Step 2: highlight all face-up player field monsters (MZ + EMZ). Clicking a material toggles its inclusion (visual outline). A floating "Confirm" button shows the running count and dispatches `xyzSummon(...)`.
-- Allow 0 materials (a "vanilla" XYZ summon — host without overlays).
-- ESC cancels the picker at any stage; cancellation is non-destructive.
+- `buildFieldItems` — when the instance is a face-up player-controlled MZ/EMZ monster that is NOT a material (hosts allowed), prepends an `Overlay` item, gated on at least one *other* eligible monster existing. Its `run`: if exactly one valid target, calls `duel.attachAsMaterial(host=instance, material=target)` directly; otherwise opens an `overlay_target` picker.
+- `buildExtraItems` — when `isXyzMonster(cardData)` AND ≥1 face-up player MZ/EMZ monster exists, prepends `OL ATK` and `OL DEF` items above `Special Summon`. Each `run`: if exactly one valid target, calls `duel.xyzSummonOnto` directly with the chosen position; otherwise opens an `xyz_summon` picker carrying the position.
+- `buildMenuItems` — when the instance has `overlayHostUuid` set, short-circuits to a 2-item menu (`Banish` → `duel.banishMaterial`, `Detach` → `duel.detachMaterial`). This branch takes precedence over zoneKind-based dispatch.
 
 **Done-when:**
-1. Summon an XYZ from Extra Deck via OL ATK → pick an MZ slot → pick 2 face-up field monsters → press Confirm → XYZ lands face-up-attack in that slot with both materials rendering as chips beneath.
-2. Hover a material chip → only Banish / Detach options shown. Detach → material lands in GY; chip count decreases by 1.
-3. Send the XYZ host to GY → all remaining materials also land in GY automatically; log shows N+1 moves.
-4. Right-click the XYZ host on the field → Return to Extra Deck still visible (Step 6); using it moves the host to EXTRA and the materials to GY in one user action (Return-to-Extra-Deck is treated the same as any other host-leaves-field event).
+1. Two face-up player monsters A (MZ1) and B (MZ2): right-click A → `Overlay` (auto-picks B since it's the only target) → MZ1 is empty; MZ2 contains A as host with B as a single chip beneath.
+2. Add a third face-up monster C in MZ3; right-click C → `Overlay` (picker opens because there are now two targets) → click A → C moves into MZ2 carrying A and B as chips (A's prior material transferred). MZ3 is empty.
+3. Hover any chip → only `Banish` and `Detach` shown. `Detach` → chip count drops by 1, material lands in GY face-up; host and remaining materials unchanged.
+4. With ≥1 face-up player MZ/EMZ monster, right-click an XYZ in Extra Deck → `OL ATK` and `OL DEF` both appear. Pick `OL ATK` (auto-picks the only target, or pick one from the picker) → XYZ lands face-up-attack in that monster's zone with that monster *and all of its prior materials* as chips.
+5. Send the XYZ host to GY via its menu → host and all remaining materials land in GY (one event per material + host; log shows N+1 entries).
+6. Right-click the XYZ host → `Return to Extra Deck` (Step 6) → host goes to EXTRA, materials cascade to GY in one user action.
+7. With zero face-up player MZ/EMZ monsters, an XYZ in Extra Deck shows NEITHER `OL ATK` nor `OL DEF`. A non-host monster with no other eligible monster on the field shows no `Overlay` item either.
+8. Rotate a host (with materials) to defense → the host visual rotates counter-clockwise to landscape and re-centers within the zone; chips remain upright in face-up-attack orientation.
 
 ---
 
 ## Critical files
 
-- [src/state/duelStore.ts](src/state/duelStore.ts) — new commands for millTop / banishTop / banishTopFaceDown, returnToExtraDeck, xyzSummon, detachMaterial, banishMaterial, plus a wrapper that cascades materials → GY on host-leaves-field.
-- [src/ui/menu/contextMenuItems.ts](src/ui/menu/contextMenuItems.ts) — biggest UX surface; almost every step touches it.
-- [src/ui/field/CardOnField.vue](src/ui/field/CardOnField.vue) — face-down image, separate "preview hidden" vs. "context-menu hidden" flags, overlay chip rendering.
+- [src/state/duelStore.ts](src/state/duelStore.ts) — new commands for millTop / banishTop / banishTopFaceDown, returnToExtraDeck, attachAsMaterial, xyzSummonOnto, detachMaterial, banishMaterial. The host-leaves-field cascade lives inside `moveCard()` itself so every public command that funnels through it gets the behavior for free.
+- [src/ui/menu/contextMenuItems.ts](src/ui/menu/contextMenuItems.ts) — biggest UX surface; almost every step touches it. Material short-circuit, `Overlay` item, OL ATK / OL DEF items, and the auto-pick when exactly one valid target exists all live here.
+- [src/ui/field/CardOnField.vue](src/ui/field/CardOnField.vue) — face-down image, separate "preview hidden" vs. "context-menu hidden" flags, overlay chip rendering. Host visual elements are sized to the card's aspect ratio (not the full zone) and own the hover handlers + menu anchor, so the hover hit area and menu position match the visible card. Defense rotation (`rotate(-90deg)`) is applied to the host element rather than the parent so chips stay upright.
 - [src/ui/field/Zone.vue](src/ui/field/Zone.vue) — remove on-deck buttons; allow deck hover→menu without exposing the card.
+- [src/ui/field/OverlayChip.vue](src/ui/field/OverlayChip.vue) — new component for an attached material chip; renders the material's image and owns its 2-item `Banish` / `Detach` hover menu.
 - [src/ui/field/PlayMat.vue](src/ui/field/PlayMat.vue) — square cells, Field Spell background image.
 - [src/duel/types.ts](src/duel/types.ts) — `overlayUuids` / `overlayHostUuid` on `CardInstance`.
 - [src/cards/types.ts](src/cards/types.ts) — `isExtraDeckMonster`, `isXyzMonster` helpers.
+- [src/core/events/eventTypes.ts](src/core/events/eventTypes.ts) — `overlay_attached` / `overlay_detached` `MoveReason` values.
+- [src/core/reducers/duelReducer.ts](src/core/reducers/duelReducer.ts) — `CARD_MOVED` extended to maintain `overlayUuids` / `overlayHostUuid` and to force-detach materials on host-leaves-field.
+- [src/state/uiStore.ts](src/state/uiStore.ts) — two new picker kinds (`overlay_target`, `xyz_summon`).
 - [src/ui/hand/Hand.vue](src/ui/hand/Hand.vue) + [src/ui/hand/HandCard.vue](src/ui/hand/HandCard.vue) — overlap layout.
 
 ## End-to-end verification (after all 7 steps)

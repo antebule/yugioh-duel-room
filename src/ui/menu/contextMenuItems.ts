@@ -1,6 +1,6 @@
 import type { CardInstance, ZoneKind } from '@/duel/types'
 import type { CardData, CardCategory } from '@/cards/types'
-import { classifyCard, isExtraDeckMonster } from '@/cards/types'
+import { classifyCard, isExtraDeckMonster, isXyzMonster } from '@/cards/types'
 import { useDuelStore } from '@/state/duelStore'
 import { useUiStore } from '@/state/uiStore'
 import type { ZonePickerKind } from '@/state/uiStore'
@@ -15,6 +15,25 @@ export interface MenuItem {
 function zoneKindOf(instance: CardInstance): ZoneKind {
   const parts = instance.zoneId.split(':')
   return parts[1] as ZoneKind
+}
+
+function listPlayerFaceUpFieldMonsters(excludeUuid?: string): string[] {
+  const duel = useDuelStore()
+  const uuids: string[] = []
+  for (const inst of Object.values(duel.state.instances)) {
+    if (!inst) continue
+    if (excludeUuid && inst.uuid === excludeUuid) continue
+    if (inst.controller !== 'player') continue
+    if (!inst.faceUp) continue
+    if (inst.overlayHostUuid) continue
+    const kind = inst.zoneId.split(':')[1]
+    if (kind === 'MZ' || kind === 'EMZ') uuids.push(inst.uuid)
+  }
+  return uuids
+}
+
+function playerHasFaceUpFieldMonster(excludeUuid?: string): boolean {
+  return listPlayerFaceUpFieldMonsters(excludeUuid).length > 0
 }
 
 function startPicker(
@@ -148,8 +167,36 @@ function buildFieldItems(
         ? ['FIELD_SPELL']
         : ['ST']
   const extraDeck = cardData ? isExtraDeckMonster(cardData) : false
+  const kind = zoneKindOf(instance)
+  // The right-clicked monster acts as the host; it just needs to be a
+  // face-up, player-controlled MZ/EMZ monster that is not itself a material.
+  // Hosts (already carrying materials) can still gain more.
+  const canOverlay =
+    category === 'monster' &&
+    instance.controller === 'player' &&
+    instance.faceUp &&
+    !instance.overlayHostUuid &&
+    (kind === 'MZ' || kind === 'EMZ') &&
+    playerHasFaceUpFieldMonster(instance.uuid)
 
-  const items: MenuItem[] = [
+  const items: MenuItem[] = []
+  if (canOverlay) {
+    items.push({
+      label: 'Overlay',
+      run: () => {
+        const targets = listPlayerFaceUpFieldMonsters(instance.uuid)
+        if (targets.length === 1) {
+          const ui = useUiStore()
+          ui.closeContextMenu()
+          ui.closeZoneBrowser()
+          duel.attachAsMaterial(instance.uuid, targets[0]!)
+          return
+        }
+        startPicker(instance, 'overlay_target', ['MZ', 'EMZ'])
+      },
+    })
+  }
+  items.push(
     { label: 'Rotate (ATK/DEF)', run: () => duel.rotate(instance.uuid) },
     { label: 'Flip', run: () => duel.flip(instance.uuid) },
     {
@@ -159,7 +206,7 @@ function buildFieldItems(
     { label: 'Destroy', run: () => duel.destroy(instance.uuid) },
     { label: 'Send to GY', run: () => duel.sendToGY(instance.uuid) },
     { label: 'Banish', run: () => duel.banish(instance.uuid) },
-  ]
+  )
   if (extraDeck) {
     items.push({
       label: 'Return to Extra Deck',
@@ -180,6 +227,15 @@ export function buildMenuItems(
   instance: CardInstance,
   cardData: CardData | undefined,
 ): MenuItem[] {
+  // XYZ material: short-circuit to a 2-item menu regardless of zoneId.
+  if (instance.overlayHostUuid) {
+    const duel = useDuelStore()
+    return [
+      { label: 'Banish', run: () => duel.banishMaterial(instance.uuid) },
+      { label: 'Detach', run: () => duel.detachMaterial(instance.uuid) },
+    ]
+  }
+
   const kind = zoneKindOf(instance)
   const category: CardCategory = cardData ? classifyCard(cardData) : 'monster'
 
@@ -264,8 +320,33 @@ function buildExtraItems(
   cardData: CardData | undefined,
 ): MenuItem[] {
   const duel = useDuelStore()
+  const ui = useUiStore()
   const extraDeck = cardData ? isExtraDeckMonster(cardData) : false
+  const xyz = cardData ? isXyzMonster(cardData) : false
+  const hasFaceUpTarget = playerHasFaceUpFieldMonster()
+
   const items: MenuItem[] = [{ label: 'Reveal', run: () => duel.reveal(instance.uuid) }]
+  if (xyz && hasFaceUpTarget) {
+    const startXyzSummon = (position: 'face-up-attack' | 'face-up-defense') => {
+      ui.closeContextMenu()
+      ui.closeZoneBrowser()
+      const targets = listPlayerFaceUpFieldMonsters()
+      if (targets.length === 1) {
+        duel.xyzSummonOnto(instance.uuid, targets[0]!, position)
+        return
+      }
+      ui.startZonePicker({
+        instanceUuid: instance.uuid,
+        kind: 'xyz_summon',
+        validZoneKinds: ['MZ', 'EMZ'],
+        position,
+      })
+    }
+    items.push(
+      { label: 'OL ATK', run: () => startXyzSummon('face-up-attack') },
+      { label: 'OL DEF', run: () => startXyzSummon('face-up-defense') },
+    )
+  }
   if (category === 'monster') {
     items.push({
       label: 'Special Summon',

@@ -37,6 +37,10 @@ const pickerHint = computed(() => {
       return 'Click a Spell/Trap Zone to Set · Esc to cancel'
     case 'move_zone':
       return 'Click a destination zone · Esc to cancel'
+    case 'overlay_target':
+      return 'Click a face-up Monster to overlay onto · Esc to cancel'
+    case 'xyz_summon':
+      return 'Click a face-up Monster to summon onto · Esc to cancel'
     default:
       return null
   }

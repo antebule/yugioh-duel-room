@@ -34,3 +34,7 @@ export function classifyCard(card: Pick<CardData, 'type' | 'race'>): CardCategor
 export function isExtraDeckMonster(card: Pick<CardData, 'type'>): boolean {
   return /(Fusion|Synchro|XYZ|Link)/i.test(card.type)
 }
+
+export function isXyzMonster(card: Pick<CardData, 'type'>): boolean {
+  return /XYZ/i.test(card.type)
+}

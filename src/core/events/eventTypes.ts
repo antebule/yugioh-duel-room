@@ -22,6 +22,8 @@ export type MoveReason =
   | 'destroy'
   | 'activate'
   | 'reveal'
+  | 'overlay_attached'
+  | 'overlay_detached'
 
 export interface BaseEvent {
   id: string
@@ -55,6 +57,9 @@ export type DuelEvent =
       prevRotation: Rotation
       newRotation: Rotation
       reason: MoveReason
+      // For 'overlay_attached': the host that gains this card as a material.
+      // For 'overlay_detached' / send-gy cascade: the host this card was attached to.
+      hostUuid?: string
     })
   | (BaseEvent & { type: 'CARD_DRAWN'; cardUuid: string; owner: Owner })
   | (BaseEvent & {

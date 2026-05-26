@@ -194,6 +194,38 @@ export const useDuelStore = defineStore('duel', () => {
     const toZone = state.value.zones[toZoneId]
     if (!fromZone || !toZone) return
 
+    // Host-leaves-field cascade: if this instance has attached materials AND
+    // the destination is not a Monster / Extra-Monster zone, all materials
+    // are sent to GY first (one CARD_MOVED with reason 'send_gy' per material).
+    // The reducer detects overlayHostUuid set + non-overlay reason and treats
+    // each as a forced detach before applying the normal zone move.
+    const leavingField = toZone.kind !== 'MZ' && toZone.kind !== 'EMZ'
+    const materials = inst.overlayUuids ? [...inst.overlayUuids] : []
+    if (materials.length > 0 && leavingField) {
+      for (const matUuid of materials) {
+        const mat = state.value.instances[matUuid]
+        if (!mat) continue
+        const gyZoneId = `${mat.owner}:GY:0` as ZoneId
+        const gyZone = state.value.zones[gyZoneId]
+        if (!gyZone) continue
+        dispatch({
+          ...makeBase(mat.owner),
+          type: 'CARD_MOVED',
+          cardUuid: matUuid,
+          from: { zoneId: mat.zoneId, index: 0 },
+          to: { zoneId: gyZoneId, index: gyZone.cards.length },
+          prevPosition: mat.position,
+          newPosition: 'face-up-attack',
+          prevFaceUp: mat.faceUp,
+          newFaceUp: true,
+          prevRotation: mat.rotation,
+          newRotation: 0,
+          reason: 'send_gy',
+          hostUuid: cardUuid,
+        })
+      }
+    }
+
     const fromIndex = fromZone.cards.indexOf(cardUuid)
     const toIndex = opts.toIndex ?? toZone.cards.length
 
@@ -398,6 +430,217 @@ export const useDuelStore = defineStore('duel', () => {
     })
   }
 
+  function zoneKindFromId(zoneId: ZoneId): string {
+    return zoneId.split(':')[1] ?? ''
+  }
+
+  // Attach `materialUuid` (and any materials it already had) to `hostUuid`.
+  // The right-clicked monster is the host; the clicked monster is the material.
+  function attachAsMaterial(hostUuid: string, materialUuid: string): void {
+    if (hostUuid === materialUuid) return
+    const host = state.value.instances[hostUuid]
+    const material = state.value.instances[materialUuid]
+    if (!host || !material) return
+    if (!host.faceUp || !material.faceUp) return
+    if (host.controller !== material.controller) return
+    if (host.overlayHostUuid || material.overlayHostUuid) return
+    const hostKind = zoneKindFromId(host.zoneId)
+    const materialKind = zoneKindFromId(material.zoneId)
+    if (hostKind !== 'MZ' && hostKind !== 'EMZ') return
+    if (materialKind !== 'MZ' && materialKind !== 'EMZ') return
+
+    const hostOldZone = host.zoneId
+    const materialOldZone = material.zoneId
+    if (hostOldZone === materialOldZone) return
+
+    // If material was itself a host, transfer its existing materials to the
+    // new host first so they end up beneath the freshly-attached material.
+    const inherited = material.overlayUuids ? [...material.overlayUuids] : []
+    for (const matUuid of inherited) {
+      const mat = state.value.instances[matUuid]
+      if (!mat) continue
+      dispatch({
+        ...makeBase(mat.owner),
+        type: 'CARD_MOVED',
+        cardUuid: matUuid,
+        from: { zoneId: mat.zoneId, index: 0 },
+        to: { zoneId: materialOldZone, index: 0 },
+        prevPosition: mat.position,
+        newPosition: mat.position,
+        prevFaceUp: mat.faceUp,
+        newFaceUp: mat.faceUp,
+        prevRotation: mat.rotation,
+        newRotation: mat.rotation,
+        reason: 'overlay_attached',
+        hostUuid,
+      })
+    }
+
+    // Attach the material to the host (vacating the target zone).
+    const materialFromZone = state.value.zones[materialOldZone]
+    if (!materialFromZone) return
+    const materialFromIndex = materialFromZone.cards.indexOf(materialUuid)
+    dispatch({
+      ...makeBase(material.owner),
+      type: 'CARD_MOVED',
+      cardUuid: materialUuid,
+      from: { zoneId: materialOldZone, index: materialFromIndex },
+      to: { zoneId: materialOldZone, index: 0 },
+      prevPosition: material.position,
+      newPosition: material.position,
+      prevFaceUp: material.faceUp,
+      newFaceUp: material.faceUp,
+      prevRotation: material.rotation,
+      newRotation: material.rotation,
+      reason: 'overlay_attached',
+      hostUuid,
+    })
+
+    // Move the host into the target's (now empty) zone. The reducer
+    // auto-syncs every attached material's zoneId to the host's new zone.
+    const hostFromZone = state.value.zones[hostOldZone]
+    const hostFromIndex = hostFromZone ? hostFromZone.cards.indexOf(hostUuid) : 0
+    const materialZoneAfter = state.value.zones[materialOldZone]
+    const hostToIndex = materialZoneAfter ? materialZoneAfter.cards.length : 0
+    dispatch({
+      ...makeBase(host.owner),
+      type: 'CARD_MOVED',
+      cardUuid: hostUuid,
+      from: { zoneId: hostOldZone, index: hostFromIndex },
+      to: { zoneId: materialOldZone, index: hostToIndex },
+      prevPosition: host.position,
+      newPosition: host.position,
+      prevFaceUp: host.faceUp,
+      newFaceUp: host.faceUp,
+      prevRotation: host.rotation,
+      newRotation: host.rotation,
+      reason: 'move_zone',
+    })
+  }
+
+  function xyzSummonOnto(
+    extraDeckCardUuid: string,
+    targetUuid: string,
+    position: 'face-up-attack' | 'face-up-defense',
+  ): void {
+    const xyz = state.value.instances[extraDeckCardUuid]
+    const target = state.value.instances[targetUuid]
+    if (!xyz || !target) return
+    if (!target.faceUp) return
+    const targetZoneId = target.zoneId
+    const targetKind = zoneKindFromId(targetZoneId)
+    if (targetKind !== 'MZ' && targetKind !== 'EMZ') return
+
+    // Inherit the target's existing materials: they transfer from `target` to
+    // the new XYZ host. Order: previous materials first, then the displaced
+    // target itself appended on top.
+    const inherited = target.overlayUuids ? [...target.overlayUuids] : []
+    for (const matUuid of inherited) {
+      const mat = state.value.instances[matUuid]
+      if (!mat) continue
+      dispatch({
+        ...makeBase(mat.owner),
+        type: 'CARD_MOVED',
+        cardUuid: matUuid,
+        from: { zoneId: mat.zoneId, index: 0 },
+        to: { zoneId: targetZoneId, index: 0 },
+        prevPosition: mat.position,
+        newPosition: mat.position,
+        prevFaceUp: mat.faceUp,
+        newFaceUp: mat.faceUp,
+        prevRotation: mat.rotation,
+        newRotation: mat.rotation,
+        reason: 'overlay_attached',
+        hostUuid: extraDeckCardUuid,
+      })
+    }
+
+    // Target becomes a material of the XYZ, vacating its zone.
+    dispatch({
+      ...makeBase(target.owner),
+      type: 'CARD_MOVED',
+      cardUuid: targetUuid,
+      from: { zoneId: targetZoneId, index: state.value.zones[targetZoneId]?.cards.indexOf(targetUuid) ?? 0 },
+      to: { zoneId: targetZoneId, index: 0 },
+      prevPosition: target.position,
+      newPosition: target.position,
+      prevFaceUp: target.faceUp,
+      newFaceUp: target.faceUp,
+      prevRotation: target.rotation,
+      newRotation: target.rotation,
+      reason: 'overlay_attached',
+      hostUuid: extraDeckCardUuid,
+    })
+
+    // Special-summon the XYZ into the now-empty target zone.
+    const xyzNewRotation = position === 'face-up-defense' ? 90 : 0
+    const xyzFromZoneId = xyz.zoneId
+    const xyzFromZone = state.value.zones[xyzFromZoneId]
+    const xyzFromIndex = xyzFromZone ? xyzFromZone.cards.indexOf(extraDeckCardUuid) : 0
+    const targetZoneAfter = state.value.zones[targetZoneId]
+    const xyzToIndex = targetZoneAfter ? targetZoneAfter.cards.length : 0
+    dispatch({
+      ...makeBase(xyz.owner),
+      type: 'CARD_MOVED',
+      cardUuid: extraDeckCardUuid,
+      from: { zoneId: xyzFromZoneId, index: xyzFromIndex },
+      to: { zoneId: targetZoneId, index: xyzToIndex },
+      prevPosition: xyz.position,
+      newPosition: position,
+      prevFaceUp: xyz.faceUp,
+      newFaceUp: true,
+      prevRotation: xyz.rotation,
+      newRotation: xyzNewRotation,
+      reason: 'special_summon',
+    })
+  }
+
+  function detachMaterial(materialUuid: string): void {
+    const mat = state.value.instances[materialUuid]
+    if (!mat || !mat.overlayHostUuid) return
+    const gyZoneId = `${mat.owner}:GY:0` as ZoneId
+    const gyZone = state.value.zones[gyZoneId]
+    if (!gyZone) return
+    dispatch({
+      ...makeBase(mat.owner),
+      type: 'CARD_MOVED',
+      cardUuid: materialUuid,
+      from: { zoneId: mat.zoneId, index: 0 },
+      to: { zoneId: gyZoneId, index: gyZone.cards.length },
+      prevPosition: mat.position,
+      newPosition: 'face-up-attack',
+      prevFaceUp: mat.faceUp,
+      newFaceUp: true,
+      prevRotation: mat.rotation,
+      newRotation: 0,
+      reason: 'overlay_detached',
+      hostUuid: mat.overlayHostUuid,
+    })
+  }
+
+  function banishMaterial(materialUuid: string): void {
+    const mat = state.value.instances[materialUuid]
+    if (!mat || !mat.overlayHostUuid) return
+    const banishedZoneId = `${mat.owner}:BANISHED:0` as ZoneId
+    const banishedZone = state.value.zones[banishedZoneId]
+    if (!banishedZone) return
+    dispatch({
+      ...makeBase(mat.owner),
+      type: 'CARD_MOVED',
+      cardUuid: materialUuid,
+      from: { zoneId: mat.zoneId, index: 0 },
+      to: { zoneId: banishedZoneId, index: banishedZone.cards.length },
+      prevPosition: mat.position,
+      newPosition: 'face-up-attack',
+      prevFaceUp: mat.faceUp,
+      newFaceUp: true,
+      prevRotation: mat.rotation,
+      newRotation: 0,
+      reason: 'overlay_detached',
+      hostUuid: mat.overlayHostUuid,
+    })
+  }
+
   function rotate(cardUuid: string): void {
     const inst = state.value.instances[cardUuid]
     if (!inst) return
@@ -551,6 +794,10 @@ export const useDuelStore = defineStore('duel', () => {
     millTop,
     banishTop,
     banishTopFaceDown,
+    attachAsMaterial,
+    xyzSummonOnto,
+    detachMaterial,
+    banishMaterial,
     rotate,
     flip,
     reveal,
