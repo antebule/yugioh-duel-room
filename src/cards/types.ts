@@ -38,3 +38,7 @@ export function isExtraDeckMonster(card: Pick<CardData, 'type'>): boolean {
 export function isXyzMonster(card: Pick<CardData, 'type'>): boolean {
   return /XYZ/i.test(card.type)
 }
+
+export function isPendulum(card: Pick<CardData, 'type'>): boolean {
+  return /Pendulum/i.test(card.type)
+}

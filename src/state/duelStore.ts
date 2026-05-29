@@ -384,6 +384,17 @@ export const useDuelStore = defineStore('duel', () => {
     })
   }
 
+  function pendulumToExtraDeck(cardUuid: string): void {
+    const inst = state.value.instances[cardUuid]
+    if (!inst) return
+    const extraZone = `${inst.owner}:EXTRA:0` as ZoneId
+    moveCard(cardUuid, extraZone, {
+      position: 'face-up-attack',
+      faceUp: true,
+      reason: 'return_deck',
+    })
+  }
+
   function shuffleIntoDeck(cardUuid: string): void {
     const inst = state.value.instances[cardUuid]
     if (!inst) return
@@ -790,6 +801,7 @@ export const useDuelStore = defineStore('duel', () => {
     returnToDeckBottom,
     returnToHand,
     returnToExtraDeck,
+    pendulumToExtraDeck,
     shuffleIntoDeck,
     millTop,
     banishTop,

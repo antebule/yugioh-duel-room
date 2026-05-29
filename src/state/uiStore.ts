@@ -25,6 +25,10 @@ export interface ZonePicker {
   instanceUuid: string
   kind: ZonePickerKind
   validZoneKinds: ZoneKind[]
+  // When set, restricts valid targets to these exact zones (e.g. the two
+  // Pendulum Scale zones for a Pendulum Activate). Existing pickers leave it
+  // undefined and are unaffected.
+  validZoneIds?: ZoneId[]
   // For 'xyz_summon': position the XYZ should be summoned in (face-up-attack/defense).
   position?: FieldPosition
 }

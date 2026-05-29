@@ -2,7 +2,7 @@
 
 ## Context
 
-Phases 1–3 from [Plan.md](Plan.md) are complete (steps 1–12 landed; latest commit `a71f010` finished step 12). The app boots a working duel sandbox, but seven concrete UX/data issues need to land before moving on to Phase 4 (undo/replay). This plan turns each polish item into a verifiable step.
+Phases 1–3 from [Plan.md](Plan.md) are complete (steps 1–12 landed; latest commit `a71f010` finished step 12). The app boots a working duel sandbox, but eight concrete UX/data issues need to land before moving on to Phase 4 (undo/replay). This plan turns each polish item into a verifiable step.
 
 The pacing rule still applies: **finish one step at a time, then stop and ask before starting the next**.
 
@@ -19,7 +19,9 @@ The pacing rule still applies: **finish one step at a time, then stop and ask be
 | Hand overlap kick-in | Only when hand size > 6. ≤ 6 cards stay in a flat row with gaps; ≥ 7 cards stay flat but overlap horizontally to fit the strip (no fan/rotation). |
 | Playmat aspect change | Change from 413:430 → 7:5 so MZ/EMZ/ST cells fall out as 1:1 squares. |
 | XYZ host return-to-Extra-Deck | Materials still go to GY (Return-to-Extra-Deck is treated the same as any other host-leaves-field event). |
-| Step ordering | 1: square cells → 2: card-back → 3: hand overlap → 4: deck context menu → 5: field spell → 6: Extra-Deck routing → 7: XYZ overlay. |
+| Pendulum detection | By `cardData.type` matching `/Pendulum/i` (sibling to `isExtraDeckMonster` / `isXyzMonster`). |
+| Pendulum "To Extra Deck FU" | Coexists with the existing face-down "Return to Extra Deck" for extra-deck pendulums (both shown); face-up version uses `pendulumToExtraDeck`. |
+| Step ordering | 1: square cells → 2: card-back → 3: hand overlap → 4: deck context menu → 5: field spell → 6: Extra-Deck routing → 7: XYZ overlay → 8: Pendulum actions. |
 
 ---
 
@@ -207,24 +209,47 @@ In both flows: ESC cancels at any stage; cancel is non-destructive.
 
 ---
 
+### Step 8 — Pendulum monsters: Activate (Hand) + To Extra Deck FU
+
+**Goal:** Pendulum monsters gain two location-specific actions. In Hand they can be **Activated** into a Pendulum Scale zone (the far-left `ST:0` / far-right `ST:4` zones). On field / GY / banished they can be returned **To Extra Deck face-up**.
+
+Pendulum detection: `cardData.type` matches `/Pendulum/i` (sibling to `isExtraDeckMonster` / `isXyzMonster`).
+
+- [src/cards/types.ts](src/cards/types.ts): add `isPendulum(cardData)` → `/Pendulum/i.test(cardData.type)`.
+- [src/state/uiStore.ts](src/state/uiStore.ts): extend `ZonePicker` with an optional `validZoneIds?: ZoneId[]`. When set, only those exact zones are valid picker targets (lets the Activate picker highlight just the two Pendulum zones). No new `ZonePickerKind` — reuse `'activate'`.
+- [src/ui/field/Zone.vue](src/ui/field/Zone.vue:32): in `isPickerTarget`, after the existing kind/owner/empty checks, additionally require `picker.validZoneIds.includes(props.zone.id)` when `validZoneIds` is set. Existing pickers leave it undefined and are unaffected.
+- [src/state/duelStore.ts](src/state/duelStore.ts): add `pendulumToExtraDeck(cardUuid)` — mirrors `returnToExtraDeck` but face-up (`position: 'face-up-attack'`, `faceUp: true`, `reason: 'return_deck'`). `moveCard`'s host-leaves-field cascade already handles any attached materials.
+- [src/ui/menu/contextMenuItems.ts](src/ui/menu/contextMenuItems.ts):
+  - `buildHandItems` (monster branch): when `isPendulum(cardData)`, compute `left = ${owner}:ST:0`, `right = ${owner}:ST:4`, and the subset that is empty. If ≥1 empty, prepend an **Activate** item: 1 empty → `duel.activateSpellTrap(uuid, theEmptyOne)` directly (auto, no picker, same pattern as the single-target Overlay/XYZ auto-pick); 2 empty → `ui.startZonePicker({ kind: 'activate', validZoneKinds: ['ST'], validZoneIds: empty })`. 0 empty → no Activate item.
+  - `buildFieldItems`, `buildGYItems`, `buildBanishedItems`: when `isPendulum(cardData)`, add a **To Extra Deck FU** item → `duel.pendulumToExtraDeck(uuid)`. This is *in addition to* the existing face-down "Return to Extra Deck" for extra-deck pendulums (both shown).
+
+**Done-when:**
+1. With `ST:0` and `ST:4` both empty, right-click a Pendulum in hand → **Activate** appears → only the far-left and far-right ST zones pulse → clicking one places the card there face-up.
+2. With exactly one of `ST:0` / `ST:4` empty → **Activate** places the card into the remaining Pendulum zone immediately (no picker).
+3. With both Pendulum zones filled → no **Activate** item; a non-Pendulum monster in hand never shows it.
+4. A Pendulum on field / in GY / banished shows **To Extra Deck FU**; clicking it puts the card on top of the Extra Deck face-up (art visible).
+5. An extra-deck Pendulum shows BOTH "Return to Extra Deck" (face-down) and "To Extra Deck FU" (face-up), each behaving accordingly.
+
+---
+
 ## Critical files
 
-- [src/state/duelStore.ts](src/state/duelStore.ts) — new commands for millTop / banishTop / banishTopFaceDown, returnToExtraDeck, attachAsMaterial, xyzSummonOnto, detachMaterial, banishMaterial. The host-leaves-field cascade lives inside `moveCard()` itself so every public command that funnels through it gets the behavior for free.
+- [src/state/duelStore.ts](src/state/duelStore.ts) — new commands for millTop / banishTop / banishTopFaceDown, returnToExtraDeck, attachAsMaterial, xyzSummonOnto, detachMaterial, banishMaterial, pendulumToExtraDeck (face-up Extra Deck return). The host-leaves-field cascade lives inside `moveCard()` itself so every public command that funnels through it gets the behavior for free.
 - [src/ui/menu/contextMenuItems.ts](src/ui/menu/contextMenuItems.ts) — biggest UX surface; almost every step touches it. Material short-circuit, `Overlay` item, OL ATK / OL DEF items, and the auto-pick when exactly one valid target exists all live here.
 - [src/ui/field/CardOnField.vue](src/ui/field/CardOnField.vue) — face-down image, separate "preview hidden" vs. "context-menu hidden" flags, overlay chip rendering. Host visual elements are sized to the card's aspect ratio (not the full zone) and own the hover handlers + menu anchor, so the hover hit area and menu position match the visible card. Defense rotation (`rotate(-90deg)`) is applied to the host element rather than the parent so chips stay upright.
 - [src/ui/field/Zone.vue](src/ui/field/Zone.vue) — remove on-deck buttons; allow deck hover→menu without exposing the card.
 - [src/ui/field/OverlayChip.vue](src/ui/field/OverlayChip.vue) — new component for an attached material chip; renders the material's image and owns its 2-item `Banish` / `Detach` hover menu.
 - [src/ui/field/PlayMat.vue](src/ui/field/PlayMat.vue) — square cells, Field Spell background image.
 - [src/duel/types.ts](src/duel/types.ts) — `overlayUuids` / `overlayHostUuid` on `CardInstance`.
-- [src/cards/types.ts](src/cards/types.ts) — `isExtraDeckMonster`, `isXyzMonster` helpers.
+- [src/cards/types.ts](src/cards/types.ts) — `isExtraDeckMonster`, `isXyzMonster`, `isPendulum` helpers.
 - [src/core/events/eventTypes.ts](src/core/events/eventTypes.ts) — `overlay_attached` / `overlay_detached` `MoveReason` values.
 - [src/core/reducers/duelReducer.ts](src/core/reducers/duelReducer.ts) — `CARD_MOVED` extended to maintain `overlayUuids` / `overlayHostUuid` and to force-detach materials on host-leaves-field.
-- [src/state/uiStore.ts](src/state/uiStore.ts) — two new picker kinds (`overlay_target`, `xyz_summon`).
+- [src/state/uiStore.ts](src/state/uiStore.ts) — two new picker kinds (`overlay_target`, `xyz_summon`); optional `validZoneIds` on `ZonePicker` to restrict highlighting to specific zones (Pendulum Activate).
 - [src/ui/hand/Hand.vue](src/ui/hand/Hand.vue) + [src/ui/hand/HandCard.vue](src/ui/hand/HandCard.vue) — overlap layout.
 
-## End-to-end verification (after all 7 steps)
+## End-to-end verification (after all 8 steps)
 
-1. Import a deck containing at least one Field Spell, at least one XYZ Monster, and at least one Fusion/Synchro/Link → start a duel.
+1. Import a deck containing at least one Field Spell, at least one XYZ Monster, at least one Fusion/Synchro/Link, and at least one Pendulum monster → start a duel.
 2. Draw 8 cards → hand overlaps cleanly, no clipping.
 3. Activate the Field Spell from hand → no picker, card snaps to FIELD_SPELL zone, background changes.
 4. Normal Summon → set the monster in DEF → confirm card-back image; rotate to ATK → portrait fits.
@@ -232,5 +257,7 @@ In both flows: ESC cancels at any stage; cancel is non-destructive.
 6. Special Summon an XYZ from Extra Deck via OL ATK with 2 materials → host on field with 2 chips beneath; hover a chip → Banish / Detach only.
 7. Send the XYZ to GY → both materials follow it to GY (log shows 3 moves).
 8. Right-click a Synchro on the field → no Return to Hand / Return to Deck items; Return to Extra Deck moves it back to the EXTRA zone.
+9. Right-click a Pendulum monster in hand (both `ST:0` / `ST:4` empty) → **Activate** highlights only the far-left and far-right ST zones; click one → card lands there face-up. Fill one Pendulum zone and repeat → it auto-activates into the other with no picker. Fill both → no Activate item.
+10. Right-click that Pendulum on the field / in GY / banished → **To Extra Deck FU** puts it on top of the Extra Deck face-up (art visible). For an extra-deck Pendulum, confirm both "Return to Extra Deck" (face-down) and "To Extra Deck FU" (face-up) appear.
 
-If all 8 pass, polishing pass is complete and Phase 4 (undo/replay) can start.
+If all 10 pass, polishing pass is complete and Phase 4 (undo/replay) can start.

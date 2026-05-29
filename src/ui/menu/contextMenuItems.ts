@@ -1,6 +1,6 @@
-import type { CardInstance, ZoneKind } from '@/duel/types'
+import type { CardInstance, ZoneId, ZoneKind } from '@/duel/types'
 import type { CardData, CardCategory } from '@/cards/types'
-import { classifyCard, isExtraDeckMonster, isXyzMonster } from '@/cards/types'
+import { classifyCard, isExtraDeckMonster, isXyzMonster, isPendulum } from '@/cards/types'
 import { useDuelStore } from '@/state/duelStore'
 import { useUiStore } from '@/state/uiStore'
 import type { ZonePickerKind } from '@/state/uiStore'
@@ -104,6 +104,33 @@ function buildHandItems(
         { label: 'Return to Deck (bottom)', run: () => duel.returnToDeckBottom(instance.uuid) },
         { label: 'Shuffle into Deck', run: () => duel.shuffleIntoDeck(instance.uuid) },
       )
+    }
+    if (cardData && isPendulum(cardData)) {
+      const left = `${instance.owner}:ST:0` as ZoneId
+      const right = `${instance.owner}:ST:4` as ZoneId
+      const empty = [left, right].filter(
+        (id) => (duel.state.zones[id]?.cards.length ?? 0) === 0,
+      )
+      if (empty.length > 0) {
+        items.unshift({
+          label: 'Activate',
+          run: () => {
+            const ui = useUiStore()
+            ui.closeContextMenu()
+            ui.closeZoneBrowser()
+            if (empty.length === 1) {
+              duel.activateSpellTrap(instance.uuid, empty[0]!)
+              return
+            }
+            ui.startZonePicker({
+              instanceUuid: instance.uuid,
+              kind: 'activate',
+              validZoneKinds: ['ST'],
+              validZoneIds: empty,
+            })
+          },
+        })
+      }
     }
     return items
   }
@@ -220,6 +247,12 @@ function buildFieldItems(
       { label: 'Shuffle into Deck', run: () => duel.shuffleIntoDeck(instance.uuid) },
     )
   }
+  if (cardData && isPendulum(cardData)) {
+    items.push({
+      label: 'To Extra Deck FU',
+      run: () => duel.pendulumToExtraDeck(instance.uuid),
+    })
+  }
   return items
 }
 
@@ -280,6 +313,12 @@ function buildGYItems(
       { label: 'Shuffle into Deck', run: () => duel.shuffleIntoDeck(instance.uuid) },
     )
   }
+  if (cardData && isPendulum(cardData)) {
+    items.push({
+      label: 'To Extra Deck FU',
+      run: () => duel.pendulumToExtraDeck(instance.uuid),
+    })
+  }
   return items
 }
 
@@ -310,6 +349,12 @@ function buildBanishedItems(
       { label: 'Return to Deck (bottom)', run: () => duel.returnToDeckBottom(instance.uuid) },
       { label: 'Shuffle into Deck', run: () => duel.shuffleIntoDeck(instance.uuid) },
     )
+  }
+  if (cardData && isPendulum(cardData)) {
+    items.push({
+      label: 'To Extra Deck FU',
+      run: () => duel.pendulumToExtraDeck(instance.uuid),
+    })
   }
   return items
 }

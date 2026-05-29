@@ -37,6 +37,7 @@ const isPickerTarget = computed(() => {
   if (picker.kind === 'overlay_target' || picker.kind === 'xyz_summon') return false
   if (props.zone.owner !== 'player') return false
   if (!picker.validZoneKinds.includes(props.zone.kind)) return false
+  if (picker.validZoneIds && !picker.validZoneIds.includes(props.zone.id)) return false
   return cardCount.value === 0
 })
 
