@@ -9,6 +9,7 @@ import EmptyStateOverlay from '@/ui/modals/EmptyStateOverlay.vue'
 import ZoneBrowserModal from '@/ui/modals/ZoneBrowserModal.vue'
 import ResetConfirmModal from '@/ui/modals/ResetConfirmModal.vue'
 import ContextMenu from '@/ui/menu/ContextMenu.vue'
+import AttackArrow from '@/ui/field/AttackArrow.vue'
 import OpponentInfoBar from '@/ui/bars/OpponentInfoBar.vue'
 import PlayerInfoBar from '@/ui/bars/PlayerInfoBar.vue'
 import DuelActions from '@/ui/bars/DuelActions.vue'
@@ -96,6 +97,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
     </Teleport>
 
     <ContextMenu />
+    <AttackArrow />
   </div>
 </template>
 

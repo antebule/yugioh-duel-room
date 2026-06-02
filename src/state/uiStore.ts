@@ -11,6 +11,16 @@ export interface ContextMenuAnchor {
   height: number
 }
 
+// A direct-attack animation: the viewport-space center of the attacking card.
+// The arrow is drawn straight up from here to the top edge of the play mat. The
+// `id` increments per trigger so the overlay can restart its CSS animation even
+// when the same card attacks twice in a row.
+export interface AttackAnim {
+  id: number
+  x: number
+  y: number
+}
+
 export type ZonePickerKind =
   | 'normal_summon'
   | 'special_summon'
@@ -49,6 +59,9 @@ export const useUiStore = defineStore('ui', () => {
   const zoneBrowserZoneId = ref<ZoneId | null>(null)
 
   const lastActivatedFieldSpellOwner = ref<Owner | null>(null)
+
+  const attackAnim = ref<AttackAnim | null>(null)
+  let attackAnimSeq = 0
 
   function openModal(name: Exclude<ModalName, null>): void {
     modal.value = name
@@ -116,6 +129,15 @@ export const useUiStore = defineStore('ui', () => {
     lastActivatedFieldSpellOwner.value = owner
   }
 
+  function startAttackAnim(point: { x: number; y: number }): void {
+    attackAnimSeq += 1
+    attackAnim.value = { id: attackAnimSeq, x: point.x, y: point.y }
+  }
+
+  function clearAttackAnim(): void {
+    attackAnim.value = null
+  }
+
   return {
     modal,
     globalDragOver,
@@ -128,6 +150,9 @@ export const useUiStore = defineStore('ui', () => {
     zoneBrowserZoneId,
     lastActivatedFieldSpellOwner,
     setLastActivatedFieldSpellOwner,
+    attackAnim,
+    startAttackAnim,
+    clearAttackAnim,
     openModal,
     closeModal,
     setGlobalDragOver,

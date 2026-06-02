@@ -182,6 +182,25 @@ function startActivateFromZone(instance: CardInstance, category: CardCategory): 
   }
 }
 
+// "Attack Directly" — a face-up-attack player monster swings at the open field.
+// Deals its ATK to the opponent's life points and fires the arrow animation from
+// the attacking card up to the far edge of the play mat. The card's viewport
+// rect is read from the still-open context-menu anchor before the menu closes.
+function attackDirectly(instance: CardInstance, cardData: CardData | undefined): void {
+  const duel = useDuelStore()
+  const ui = useUiStore()
+  const anchor = ui.contextMenuAnchor
+  const atk = cardData?.atk
+  if (atk && atk > 0) duel.adjustLife('opponent', -atk)
+  if (anchor) {
+    ui.startAttackAnim({
+      x: anchor.x + anchor.width / 2,
+      y: anchor.y + anchor.height / 2,
+    })
+  }
+  ui.closeContextMenu()
+}
+
 function buildHandItems(
   instance: CardInstance,
   category: CardCategory,
@@ -440,6 +459,15 @@ function buildFieldItems(
     )
   }
   items.push({ label: 'To Graveyard', run: () => duel.sendToGY(instance.uuid) })
+  // "Attack Directly" — bottom-most, only for the player's own face-up-attack
+  // monster in MZ/EMZ during the Battle Phase.
+  if (
+    instance.controller === 'player' &&
+    instance.position === 'face-up-attack' &&
+    duel.state.phase === 'BP'
+  ) {
+    items.push({ label: 'Attack Directly', run: () => attackDirectly(instance, cardData) })
+  }
   return items
 }
 
