@@ -191,9 +191,6 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
 
 .duel-room__hand {
   min-height: 0;
-  background: var(--color-field);
-  border: 1px solid var(--color-field-edge);
-  border-radius: var(--radius-md);
   display: flex;
 }
 

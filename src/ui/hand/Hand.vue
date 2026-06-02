@@ -15,7 +15,6 @@ const overlapStyle = computed<Record<string, string> | undefined>(() =>
 <template>
   <div class="hand" :class="{ 'hand--overlap': isOverlapped }" :style="overlapStyle">
     <HandCard v-for="uuid in handCards" :key="uuid" :instance-uuid="uuid" />
-    <span v-if="handCards.length === 0" class="hand__empty">Hand is empty</span>
   </div>
 </template>
 
@@ -46,13 +45,5 @@ const overlapStyle = computed<Record<string, string> | undefined>(() =>
      sliver of every card stays visible. */
   --hand-overlap: max(calc(-0.9 * var(--card-w)),
       min(-12px, calc((100cqi - var(--count) * var(--card-w)) / (var(--count) - 1))));
-}
-
-.hand__empty {
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--color-text-dim);
-  opacity: 0.4;
 }
 </style>

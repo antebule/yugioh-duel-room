@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ZoneDef } from '@/duel/zoneCatalog'
-import { ZONE_KIND_LABEL } from '@/duel/zoneCatalog'
 import { useDuelStore } from '@/state/duelStore'
 import { useUiStore } from '@/state/uiStore'
 import type { ZonePickerKind } from '@/state/uiStore'
@@ -14,7 +13,6 @@ const props = defineProps<{
 const duelStore = useDuelStore()
 const uiStore = useUiStore()
 
-const label = computed(() => ZONE_KIND_LABEL[props.zone.kind])
 const zoneState = computed(() => duelStore.state.zones[props.zone.id])
 const topInstanceUuid = computed(() => {
   const cards = zoneState.value?.cards
@@ -32,8 +30,7 @@ const isBrowsable = computed(
 // Deck and Extra Deck render as a physical stack of cards: offset card-back
 // layers peek out behind the top card, and the pile grows with the card count.
 // The player's Deck, Extra Deck, Graveyard and Banished always display their
-// card count and omit the placeholder label when empty. Opponent zones never
-// show a count.
+// card count. Opponent zones never show a count.
 const showsCount = computed(
   () =>
     props.zone.owner === 'player' &&
@@ -172,7 +169,6 @@ function onZoneClick(): void {
       :instance-uuid="topInstanceUuid"
       :style="topCardStyle"
     />
-    <span v-if="!topInstanceUuid && !showsCount" class="zone__label">{{ label }}</span>
     <span v-if="showsCount" class="zone__count" :style="badgeStyle">{{ cardCount }}</span>
   </div>
 </template>
@@ -182,8 +178,9 @@ function onZoneClick(): void {
   position: relative;
   width: 100%;
   height: 100%;
-  border: 1px dashed var(--color-field-edge);
+  border: 3px solid var(--color-field-edge);
   border-radius: var(--radius-sm);
+  padding: 1px;
   background: rgba(255, 255, 255, 0.02);
   display: flex;
   align-items: center;
@@ -192,7 +189,6 @@ function onZoneClick(): void {
 }
 
 .zone--filled {
-  border: none;
   background: transparent;
 }
 
@@ -212,13 +208,12 @@ function onZoneClick(): void {
   pointer-events: none;
 }
 
-.zone__label {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text-dim);
-  opacity: 0.5;
-  user-select: none;
+.zone--mz {
+  border-color: #6d82b0;
+}
+
+.zone--st {
+  border-color: #3d9b9b;
 }
 
 .zone--field_spell {
@@ -226,7 +221,7 @@ function onZoneClick(): void {
 }
 
 .zone--emz {
-  border-color: var(--color-accent-blue);
+  border-color: #8a7fd6;
 }
 
 .zone--picker-target {
