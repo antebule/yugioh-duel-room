@@ -20,6 +20,7 @@ export type ZonePickerKind =
   | 'move_zone'
   | 'overlay_target'
   | 'xyz_summon'
+  | 'attach_target'
 
 export interface ZonePicker {
   instanceUuid: string

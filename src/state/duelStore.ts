@@ -268,9 +268,13 @@ export const useDuelStore = defineStore('duel', () => {
     })
   }
 
-  function specialSummon(cardUuid: string, toZoneId: ZoneId): void {
+  function specialSummon(
+    cardUuid: string,
+    toZoneId: ZoneId,
+    position: 'face-up-attack' | 'face-up-defense' = 'face-up-attack',
+  ): void {
     moveCard(cardUuid, toZoneId, {
-      position: 'face-up-attack',
+      position,
       faceUp: true,
       reason: 'special_summon',
     })
@@ -301,7 +305,24 @@ export const useDuelStore = defineStore('duel', () => {
   }
 
   function moveZone(cardUuid: string, toZoneId: ZoneId): void {
-    moveCard(cardUuid, toZoneId, { reason: 'move_zone' })
+    const inst = state.value.instances[cardUuid]
+    if (!inst) return
+    const fromKind = inst.zoneId.split(':')[1]
+    const toKind = toZoneId.split(':')[1]
+    let position = inst.position
+    if (
+      (fromKind === 'MZ' || fromKind === 'EMZ') &&
+      (toKind === 'ST' || toKind === 'FIELD_SPELL')
+    ) {
+      if (position === 'face-up-defense') position = 'face-up-attack'
+      else if (position === 'face-down-defense') position = 'face-down-attack'
+    } else if (
+      (fromKind === 'ST' || fromKind === 'FIELD_SPELL') &&
+      (toKind === 'MZ' || toKind === 'EMZ')
+    ) {
+      if (position === 'face-down-attack') position = 'face-down-defense'
+    }
+    moveCard(cardUuid, toZoneId, { reason: 'move_zone', position })
   }
 
   function sendToGY(cardUuid: string): void {
@@ -333,6 +354,17 @@ export const useDuelStore = defineStore('duel', () => {
     moveCard(cardUuid, banishedZone, {
       position: 'face-up-attack',
       faceUp: true,
+      reason: 'banish',
+    })
+  }
+
+  function banishFaceDown(cardUuid: string): void {
+    const inst = state.value.instances[cardUuid]
+    if (!inst) return
+    const banishedZone = `${inst.owner}:BANISHED:0` as ZoneId
+    moveCard(cardUuid, banishedZone, {
+      position: 'face-down-attack',
+      faceUp: false,
       reason: 'banish',
     })
   }
@@ -529,6 +561,39 @@ export const useDuelStore = defineStore('duel', () => {
     })
   }
 
+  // Attach a monster from a stacked zone (GY/Banished) onto an on-field XYZ
+  // host as a face-up material. Unlike attachAsMaterial, the host stays put.
+  function attachMaterialFromZone(hostUuid: string, materialUuid: string): void {
+    if (hostUuid === materialUuid) return
+    const host = state.value.instances[hostUuid]
+    const material = state.value.instances[materialUuid]
+    if (!host || !material) return
+    if (!host.faceUp) return
+    if (host.controller !== material.controller) return
+    if (host.overlayHostUuid || material.overlayHostUuid) return
+    const hostKind = zoneKindFromId(host.zoneId)
+    if (hostKind !== 'MZ' && hostKind !== 'EMZ') return
+
+    const materialFromZone = state.value.zones[material.zoneId]
+    if (!materialFromZone) return
+    const materialFromIndex = materialFromZone.cards.indexOf(materialUuid)
+    dispatch({
+      ...makeBase(material.owner),
+      type: 'CARD_MOVED',
+      cardUuid: materialUuid,
+      from: { zoneId: material.zoneId, index: materialFromIndex },
+      to: { zoneId: host.zoneId, index: 0 },
+      prevPosition: material.position,
+      newPosition: 'face-up-attack',
+      prevFaceUp: material.faceUp,
+      newFaceUp: true,
+      prevRotation: material.rotation,
+      newRotation: 0,
+      reason: 'overlay_attached',
+      hostUuid,
+    })
+  }
+
   function xyzSummonOnto(
     extraDeckCardUuid: string,
     targetUuid: string,
@@ -649,6 +714,18 @@ export const useDuelStore = defineStore('duel', () => {
       newRotation: 0,
       reason: 'overlay_detached',
       hostUuid: mat.overlayHostUuid,
+    })
+  }
+
+  function setPosition(cardUuid: string, position: FieldPosition): void {
+    const inst = state.value.instances[cardUuid]
+    if (!inst) return
+    dispatch({
+      ...makeBase(inst.owner),
+      type: 'CARD_POSITION_CHANGED',
+      cardUuid,
+      prev: inst.position,
+      next: position,
     })
   }
 
@@ -797,6 +874,7 @@ export const useDuelStore = defineStore('duel', () => {
     sendToGY,
     destroy,
     banish,
+    banishFaceDown,
     returnToDeckTop,
     returnToDeckBottom,
     returnToHand,
@@ -807,10 +885,12 @@ export const useDuelStore = defineStore('duel', () => {
     banishTop,
     banishTopFaceDown,
     attachAsMaterial,
+    attachMaterialFromZone,
     xyzSummonOnto,
     detachMaterial,
     banishMaterial,
     rotate,
+    setPosition,
     flip,
     reveal,
     setPhase,

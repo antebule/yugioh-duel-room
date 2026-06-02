@@ -4,6 +4,7 @@ import { useDuelStore } from '@/state/duelStore'
 import { useCardCacheStore } from '@/state/cardCacheStore'
 import { useUiStore } from '@/state/uiStore'
 import { useContextMenu } from '@/composables/useContextMenu'
+import { isXyzMonster } from '@/cards/types'
 import cardBackUrl from '@/assets/images/card-back.png'
 import OverlayChip from './OverlayChip.vue'
 
@@ -42,21 +43,44 @@ const isOverlayPickerTarget = computed(() => {
   return true
 })
 
+// Attach picker selects a face-up XYZ monster on the field as the host onto
+// which a GY/Banished monster (picker.instanceUuid) is attached as material.
+const isAttachTarget = computed(() => {
+  const picker = uiStore.zonePicker
+  const inst = instance.value
+  if (!picker || !inst) return false
+  if (picker.kind !== 'attach_target') return false
+  if (inst.controller !== 'player' || !inst.faceUp) return false
+  if (inst.overlayHostUuid) return false
+  const kind = inst.zoneId.split(':')[1]
+  if (kind !== 'MZ' && kind !== 'EMZ') return false
+  return card.value ? isXyzMonster(card.value) : false
+})
+
 function onClick(e: MouseEvent): void {
-  if (!isOverlayPickerTarget.value) return
   const picker = uiStore.zonePicker
   const inst = instance.value
   if (!picker || !inst) return
-  e.stopPropagation()
-  if (picker.kind === 'overlay_target') {
-    // The right-clicked monster (picker.instanceUuid) is the host; the
-    // clicked monster (inst.uuid) becomes its material.
-    duelStore.attachAsMaterial(picker.instanceUuid, inst.uuid)
-  } else if (picker.kind === 'xyz_summon' && picker.position) {
-    const position = picker.position === 'face-up-defense' ? 'face-up-defense' : 'face-up-attack'
-    duelStore.xyzSummonOnto(picker.instanceUuid, inst.uuid, position)
+  if (isOverlayPickerTarget.value) {
+    e.stopPropagation()
+    if (picker.kind === 'overlay_target') {
+      // The right-clicked monster (picker.instanceUuid) is the host; the
+      // clicked monster (inst.uuid) becomes its material.
+      duelStore.attachAsMaterial(picker.instanceUuid, inst.uuid)
+    } else if (picker.kind === 'xyz_summon' && picker.position) {
+      const position = picker.position === 'face-up-defense' ? 'face-up-defense' : 'face-up-attack'
+      duelStore.xyzSummonOnto(picker.instanceUuid, inst.uuid, position)
+    }
+    uiStore.cancelZonePicker()
+    return
   }
-  uiStore.cancelZonePicker()
+  if (isAttachTarget.value) {
+    e.stopPropagation()
+    // The clicked XYZ (inst.uuid) is the host; the GY/Banished monster
+    // (picker.instanceUuid) becomes its material.
+    duelStore.attachMaterialFromZone(inst.uuid, picker.instanceUuid)
+    uiStore.cancelZonePicker()
+  }
 }
 
 // Preview (right-side card info panel) is hidden for DECK and EXTRA so we don't
@@ -99,7 +123,7 @@ function onLeave(): void {
     class="card-on-field"
     :class="{
       'card-on-field--defense': isDefense,
-      'card-on-field--overlay-target': isOverlayPickerTarget,
+      'card-on-field--overlay-target': isOverlayPickerTarget || isAttachTarget,
       'card-on-field--has-materials': hasMaterials,
     }"
     :title="card?.name ?? `#${instance.cardId}`"

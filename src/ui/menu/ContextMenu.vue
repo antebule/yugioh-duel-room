@@ -27,6 +27,7 @@ const style = computed(() => {
   return {
     left: `${a.x + a.width / 2}px`,
     top: `${a.y}px`,
+    width: `${a.width}px`,
   }
 })
 
@@ -83,7 +84,9 @@ onUnmounted(() => {
 }
 
 .ctx-menu__panel {
-  min-width: 140px;
+  /* Width is driven by the wrapper, which is sized to the hovered card. */
+  width: 100%;
+  box-sizing: border-box;
   padding: 4px;
   background: rgba(15, 20, 30, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.15);

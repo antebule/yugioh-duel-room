@@ -34,7 +34,8 @@ defineEmits<{ (e: 'select'): void }>()
   letter-spacing: 0.02em;
   cursor: pointer;
   border-radius: var(--radius-sm);
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .ctx-item:hover:not(.ctx-item--disabled) {

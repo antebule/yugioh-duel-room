@@ -34,7 +34,12 @@ const isPickerTarget = computed(() => {
   if (!picker) return false
   // Overlay/XYZ pickers target a face-up monster card, not an empty zone.
   // CardOnField intercepts those clicks; zones should not highlight.
-  if (picker.kind === 'overlay_target' || picker.kind === 'xyz_summon') return false
+  if (
+    picker.kind === 'overlay_target' ||
+    picker.kind === 'xyz_summon' ||
+    picker.kind === 'attach_target'
+  )
+    return false
   if (props.zone.owner !== 'player') return false
   if (!picker.validZoneKinds.includes(props.zone.kind)) return false
   if (picker.validZoneIds && !picker.validZoneIds.includes(props.zone.id)) return false
@@ -46,9 +51,14 @@ function runPickerAction(kind: ZonePickerKind, instanceUuid: string, zoneId: typ
     case 'normal_summon':
       duelStore.normalSummon(instanceUuid, zoneId)
       return
-    case 'special_summon':
-      duelStore.specialSummon(instanceUuid, zoneId)
+    case 'special_summon': {
+      const position =
+        uiStore.zonePicker?.position === 'face-up-defense'
+          ? 'face-up-defense'
+          : 'face-up-attack'
+      duelStore.specialSummon(instanceUuid, zoneId, position)
       return
+    }
     case 'set_monster':
       duelStore.setMonster(instanceUuid, zoneId)
       return
