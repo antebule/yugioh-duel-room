@@ -5,7 +5,7 @@ import LifePointsControl from '@/ui/common/LifePointsControl.vue'
 <template>
   <header class="opp-bar">
     <span class="opp-bar__label">Opponent</span>
-    <LifePointsControl owner="opponent" :interactive="false" />
+    <LifePointsControl owner="opponent" />
   </header>
 </template>
 
@@ -13,13 +13,12 @@ import LifePointsControl from '@/ui/common/LifePointsControl.vue'
 .opp-bar {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-1) var(--space-3);
-  background: var(--color-field);
-  border: 1px solid var(--color-field-edge);
-  border-radius: var(--radius-md);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-field-edge);
+  background: rgba(0, 0, 0, 0.15);
   font-size: 12px;
-  color: var(--color-text-dim);
+  flex-shrink: 0;
   z-index: var(--z-bars);
 }
 
@@ -27,5 +26,6 @@ import LifePointsControl from '@/ui/common/LifePointsControl.vue'
   letter-spacing: 0.08em;
   text-transform: uppercase;
   opacity: 0.75;
+  color: var(--color-text-dim);
 }
 </style>

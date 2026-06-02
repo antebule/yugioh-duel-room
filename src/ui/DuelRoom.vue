@@ -58,8 +58,6 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
 
 <template>
   <div class="duel-room" :class="{ 'duel-room--drag-over': uiStore.globalDragOver }">
-    <OpponentInfoBar class="duel-room__opp-bar" />
-
     <aside class="duel-room__preview">
       <div class="duel-room__preview-inner">
         <CardPreviewPanel />
@@ -78,6 +76,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
     </main>
 
     <aside class="duel-room__right">
+      <OpponentInfoBar />
       <div class="duel-room__log-inner">
         <DuelLog />
       </div>
@@ -112,10 +111,8 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
      with the asymmetric playmat); sides take up to 20% only once that floor
      is satisfied, so they widen on larger screens without crowding the field. */
   grid-template-columns: minmax(0, 20%) minmax(590px, 1fr) minmax(0, 20%);
-  grid-template-rows: auto 1fr;
-  grid-template-areas:
-    'opp-bar opp-bar opp-bar'
-    'preview center right';
+  grid-template-rows: 1fr;
+  grid-template-areas: 'preview center right';
   gap: var(--space-2);
   padding: var(--space-2);
   background: var(--color-bg);
@@ -127,10 +124,6 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
 
 .duel-room--drag-over {
   border-color: var(--color-accent-blue);
-}
-
-.duel-room__opp-bar {
-  grid-area: opp-bar;
 }
 
 .duel-room__preview {
