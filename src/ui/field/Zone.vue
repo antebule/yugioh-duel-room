@@ -29,6 +29,65 @@ const isBrowsable = computed(
     cardCount.value > 0,
 )
 
+// Deck and Extra Deck render as a physical stack of cards: offset card-back
+// layers peek out behind the top card, and the pile grows with the card count.
+// The player's Deck, Extra Deck, Graveyard and Banished always display their
+// card count and omit the placeholder label when empty. Opponent zones never
+// show a count.
+const showsCount = computed(
+  () =>
+    props.zone.owner === 'player' &&
+    (STACKED_ZONE_KINDS as readonly string[]).includes(props.zone.kind),
+)
+
+const STACK_STEP = 1.6 // px between consecutive cards in the pile
+
+const stackLayers = computed(() => {
+  const kind = props.zone.kind
+  if ((kind !== 'DECK' && kind !== 'EXTRA') || cardCount.value <= 1) return 0
+  // Capped at 9 so layers stay below the top card (z-index var(--z-card) = 10).
+  return Math.min(9, Math.round(cardCount.value / 4))
+})
+
+// Total depth the pile occupies. The top card and layers shrink by ~1.5x this
+// so the whole stack — offsets included — stays inside the zone bounds.
+const pileDepth = computed(() => stackLayers.value * STACK_STEP)
+const stackedHeight = computed(() => `calc(100% - ${pileDepth.value * 1.5}px)`)
+
+// Offset (in px, from the zone center) for stack element `i`: 0 = top card,
+// 1..N = layers behind it. Deck fans left, Extra Deck right; the pile is
+// centered so the top card shifts one way and the deepest layer the other.
+function stackOffset(i: number): { x: number; y: number } {
+  const dir = props.zone.kind === 'DECK' ? -1 : 1
+  const half = pileDepth.value / 2
+  return { x: dir * (i * STACK_STEP - half), y: i * STACK_STEP - half }
+}
+
+// Layers are absolutely positioned at the zone center, so they carry the
+// -50% centering translate; the top card is flex-centered and only needs
+// the offset.
+function layerStyle(i: number): Record<string, string | number> {
+  const { x, y } = stackOffset(i)
+  return {
+    transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
+    height: stackedHeight.value,
+    zIndex: stackLayers.value - i + 1,
+  }
+}
+
+const EMPTY_STYLE: Record<string, string> = {}
+const topCardStyle = computed<Record<string, string>>(() => {
+  if (stackLayers.value === 0) return EMPTY_STYLE
+  const { x, y } = stackOffset(0)
+  return { transform: `translate(${x}px, ${y}px)`, height: stackedHeight.value }
+})
+// The badge is absolutely positioned (-50% centered) like the layers.
+const badgeStyle = computed<Record<string, string>>(() => {
+  if (stackLayers.value === 0) return EMPTY_STYLE
+  const { x, y } = stackOffset(0)
+  return { transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))` }
+})
+
 const isPickerTarget = computed(() => {
   const picker = uiStore.zonePicker
   if (!picker) return false
@@ -102,9 +161,19 @@ function onZoneClick(): void {
     :data-zone-id="zone.id"
     @click="onZoneClick"
   >
-    <CardOnField v-if="topInstanceUuid" :instance-uuid="topInstanceUuid" />
-    <span v-else class="zone__label">{{ label }}</span>
-    <span v-if="cardCount > 1" class="zone__count">{{ cardCount }}</span>
+    <div
+      v-for="i in stackLayers"
+      :key="i"
+      class="zone__stack-layer"
+      :style="layerStyle(i)"
+    />
+    <CardOnField
+      v-if="topInstanceUuid"
+      :instance-uuid="topInstanceUuid"
+      :style="topCardStyle"
+    />
+    <span v-if="!topInstanceUuid && !showsCount" class="zone__label">{{ label }}</span>
+    <span v-if="showsCount" class="zone__count" :style="badgeStyle">{{ cardCount }}</span>
   </div>
 </template>
 
@@ -125,6 +194,22 @@ function onZoneClick(): void {
 .zone--filled {
   border: none;
   background: transparent;
+}
+
+/* Stack-of-cards layers for Deck / Extra Deck: card-back layers offset behind
+   the top card so it reads as a physical pile. Count and offsets are driven by
+   layerStyle() in script. The top CardOnField (z-index: var(--z-card)) and the
+   count badge (var(--z-card-hover)) sit above these layers. */
+.zone__stack-layer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  height: 100%;
+  aspect-ratio: var(--card-ratio, 59 / 86);
+  border-radius: var(--radius-sm);
+  background: url('../../assets/images/card-back.png') center / cover no-repeat;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
 }
 
 .zone__label {
@@ -172,16 +257,15 @@ function onZoneClick(): void {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: var(--z-card-hover);
-  padding: 4px 10px;
-  background: rgba(0, 0, 0, 0.78);
   color: var(--color-text);
   font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 600;
+  /* Scale with the field (cqh of the playmat frame) so it stays proportional
+     across screen sizes; clamped to sane bounds at the extremes. */
+  font-size: clamp(12px, 4cqh, 30px);
+  font-weight: 700;
   letter-spacing: 0.04em;
-  border-radius: var(--radius-sm);
   pointer-events: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.8);
 }
 
 </style>
