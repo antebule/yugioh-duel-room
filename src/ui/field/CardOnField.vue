@@ -4,7 +4,7 @@ import { useDuelStore } from '@/state/duelStore'
 import { useCardCacheStore } from '@/state/cardCacheStore'
 import { useUiStore } from '@/state/uiStore'
 import { useContextMenu } from '@/composables/useContextMenu'
-import { isXyzMonster } from '@/cards/types'
+import { isXyzMonster, isLinkMonster } from '@/cards/types'
 import cardBackUrl from '@/assets/images/card-back.png'
 import OverlayChip from './OverlayChip.vue'
 
@@ -27,6 +27,30 @@ const isFaceUp = computed(() => instance.value?.faceUp ?? false)
 
 const materials = computed(() => instance.value?.overlayUuids ?? [])
 const hasMaterials = computed(() => materials.value.length > 0)
+
+// ATK/DEF readout shown at the bottom of the player's own MZ/EMZ cards. A
+// missing stat (e.g. a Spell/Trap in a Monster Zone) reads as 0; a negative
+// stat (the "?" placeholder some cards use) reads as "?". Link monsters have
+// no DEF, so only their ATK is shown.
+function statText(value: number | undefined): string {
+  if (value === undefined) return '0'
+  return value < 0 ? '?' : String(value)
+}
+
+const showStats = computed(() => {
+  const inst = instance.value
+  if (!inst || !card.value) return false
+  if (inst.controller !== 'player') return false
+  const kind = inst.zoneId.split(':')[1]
+  return kind === 'MZ' || kind === 'EMZ'
+})
+
+const statLine = computed(() => {
+  const c = card.value
+  if (!c) return ''
+  if (isLinkMonster(c)) return statText(c.atk)
+  return `${statText(c.atk)}/${statText(c.def)}`
+})
 
 // Pickers that select a face-up player MZ/EMZ monster (rather than an empty
 // zone). Click on this card is intercepted to run the picker action.
@@ -167,6 +191,7 @@ function onLeave(): void {
       :index="i"
       :count="materials.length"
     />
+    <div v-if="showStats" class="card-on-field__stats">{{ statLine }}</div>
   </div>
 </template>
 
@@ -179,6 +204,7 @@ function onLeave(): void {
   align-items: center;
   justify-content: center;
   z-index: var(--z-card);
+  container-type: inline-size;
 }
 
 /* With materials, the host slides to the left edge so chips can fan rightward
@@ -241,5 +267,33 @@ function onLeave(): void {
   color: var(--color-text-dim);
   font-family: var(--font-mono);
   font-size: 10px;
+}
+
+/* ATK/DEF bar overlaid on the bottom of the zone, spanning its full width. It
+   is a sibling of the host (not a child), so it stays upright when the host
+   rotates into defense. cqw keeps the text legible as the board scales with
+   the viewport. */
+.card-on-field__stats {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  padding: 1px 2px;
+  color: #fff;
+  font-size: clamp(12px, 15cqw, 22px);
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  white-space: nowrap;
+  letter-spacing: 0;
+  /* No background bar — a dark shadow keeps the numbers legible over the
+     card art instead. */
+  text-shadow:
+    0 0 3px rgba(0, 0, 0, 0.95),
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 6px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  z-index: 1;
 }
 </style>

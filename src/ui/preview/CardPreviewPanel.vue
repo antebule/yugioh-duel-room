@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useUiStore } from '@/state/uiStore'
 import { useDuelStore } from '@/state/duelStore'
 import { useCardCacheStore } from '@/state/cardCacheStore'
+import { isLinkMonster } from '@/cards/types'
 
 const uiStore = useUiStore()
 const duelStore = useDuelStore()
@@ -34,6 +35,14 @@ const hasCombatStats = computed(() => {
   return c?.atk !== undefined || c?.def !== undefined
 })
 
+const isLink = computed(() => (card.value ? isLinkMonster(card.value) : false))
+
+// A negative stat is the "?" placeholder; a missing stat reads as a dash.
+function statText(value: number | undefined): string {
+  if (value === undefined) return '-'
+  return value < 0 ? '?' : String(value)
+}
+
 function togglePin(): void {
   if (card.value) uiStore.togglePreviewPin()
 }
@@ -49,9 +58,11 @@ function togglePin(): void {
       <h3 class="preview__name">{{ card.name }}</h3>
       <div class="preview__meta">{{ metaParts.join(' · ') }}</div>
       <div v-if="hasCombatStats" class="preview__stats">
-        <span>ATK {{ card.atk ?? '-' }}</span>
-        <span class="preview__stats-sep">/</span>
-        <span>DEF {{ card.def ?? '-' }}</span>
+        <span>ATK {{ statText(card.atk) }}</span>
+        <template v-if="!isLink">
+          <span class="preview__stats-sep">/</span>
+          <span>DEF {{ statText(card.def) }}</span>
+        </template>
       </div>
       <p class="preview__desc">{{ card.desc }}</p>
     </div>
